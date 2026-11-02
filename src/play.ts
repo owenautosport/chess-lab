@@ -6,7 +6,7 @@ import { openInAnalysis } from "./router";
 import { load, save } from "./store";
 
 // Rough strength ladder: Stockfish skill level plus a search limit.
-const LEVELS = [
+export const LEVELS = [
   { name: "1 · Beginner", skill: 0, depth: 1 },
   { name: "2 · Novice", skill: 2, depth: 2 },
   { name: "3 · Casual", skill: 5, depth: 3 },

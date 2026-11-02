@@ -6,7 +6,7 @@ import { openInAnalysis } from "./router";
 import { load, mistakes, save, type Mistake } from "./store";
 
 type Raw = [id: string, fen: string, moves: string, rating: number, themes: string];
-type Puzzle = { id: string; fen: string; solution: string[]; rating: number; themes: string[]; mistake?: Mistake };
+export type Puzzle = { id: string; fen: string; solution: string[]; rating: number; themes: string[]; mistake?: Mistake };
 type Source = "rated" | "theme" | "mistakes";
 
 // Tags that describe length/outcome rather than a tactic; hidden from the theme picker.
@@ -25,7 +25,7 @@ type Stats = {
 const DEFAULT: Stats = { rating: 1000, played: 0, streak: 0, best: 0, recent: [], seen: [], themes: {} };
 
 let all: Puzzle[] | undefined;
-async function loadPuzzles(): Promise<Puzzle[]> {
+export async function loadPuzzles(): Promise<Puzzle[]> {
   if (all) return all;
   const raw: Raw[] = await (await fetch(`${import.meta.env.BASE_URL}data/puzzles.json`)).json();
   return (all = raw.map(([id, fen, moves, rating, themes]) => ({ id, fen, solution: moves.split(" "), rating, themes: themes.split(" ") })));
