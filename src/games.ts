@@ -3,6 +3,7 @@ import { button, h, type Color } from "./board";
 import { openInAnalysis } from "./router";
 import { load, save } from "./store";
 import { bridge } from "./ai/coach";
+import { title } from "./ui/title";
 
 type Side = { username: string; rating: number; result: string };
 export type ChessComGame = {
@@ -176,7 +177,7 @@ export function mountGames(root: HTMLElement) {
   root.append(
     h("div", { class: "games-page" },
       h("div", { class: "panel" },
-        h("h2", {}, "My Games"),
+        title("History", "My Games", "#3fb6a8"),
         h("div", { class: "muted small" }, "Pull in your chess.com games for free and run Game Review on any of them. Your mistakes go into the Puzzles → My mistakes drill."),
         h("div", { class: "row fetch" }, input, fetchBtn),
         tc,

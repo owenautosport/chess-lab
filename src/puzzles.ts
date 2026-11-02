@@ -4,6 +4,8 @@ import { askPromotion, button, colorOf, createBoard, h, isPromotion, playSound, 
 import { engine, winPercent, type Line } from "./engine";
 import { openInAnalysis } from "./router";
 import { puzzleCoach } from "./ai/puzzle-coach";
+import { title } from "./ui/title";
+import { icon } from "./ui/visuals";
 import { load, mistakes, save, type Mistake } from "./store";
 
 type Raw = [id: string, fen: string, moves: string, rating: number, themes: string];
@@ -269,9 +271,10 @@ export function mountPuzzles(root: HTMLElement) {
 
   function renderStats(delta = 0) {
     ratingEl.replaceChildren(
-      h("span", {}, String(stats.rating)),
+      icon("Puzzle", 30, "rating-icon"),
+      h("span", { class: "num" }, String(stats.rating)),
       delta ? h("span", { class: delta > 0 ? "up" : "down" }, `${delta > 0 ? "+" : ""}${delta}`) : "",
-      h("small", {}, `Streak ${stats.streak} · best ${stats.best} · ${stats.played} played`),
+      h("small", {}, icon("Flame", 14, "flame"), ` Streak ${stats.streak} · best ${stats.best} · ${stats.played} played`),
     );
     dots.replaceChildren(...stats.recent.map((w) => h("i", { class: w ? "win" : "loss" })));
     const ranked = Object.entries(stats.themes)
@@ -305,7 +308,7 @@ export function mountPuzzles(root: HTMLElement) {
     h("div", { class: "layout" },
       h("div", { class: "board-col" }, boardEl),
       h("aside", { class: "panel" },
-        h("h2", {}, "Puzzles"),
+        title("Puzzle", "Puzzles", "#f39c2f"),
         ratingEl,
         dots,
         sourceSel,

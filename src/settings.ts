@@ -1,6 +1,7 @@
 // Settings: choose the AI coach's provider and model, store a Claude key, test the connection.
 import { ai, bridge, SYSTEM, type AiSettings, type Provider } from "./ai/coach";
 import { button, h } from "./board";
+import { title } from "./ui/title";
 
 const PROVIDERS: { key: Provider; label: string; blurb: string }[] = [
   { key: "off", label: "Off", blurb: "No AI coach. Everything else works as normal." },
@@ -107,14 +108,14 @@ export function mountSettings(root: HTMLElement) {
     h("div", { class: "learn narrow" },
       h("header", { class: "learn-head" }, h("h1", {}, "Settings")),
       h("div", { class: "panel" },
-        h("h2", {}, "AI coach"),
+        title("Sparkles", "AI coach", "#5aa4e0"),
         h("p", { class: "muted small" }, "The coach explains positions, moves, puzzles and your mistakes in plain English. It's always given Stockfish's analysis, so it explains rather than guesses."),
         seg, blurb, urlRow, modelRow, modelMsg, keyRow,
         h("div", { class: "row" }, button("Test the coach", test)),
         testOut,
       ),
       h("div", { class: "panel" },
-        h("h2", {}, "About"),
+        title("Info", "About", "#a5a3a0"),
         h("p", { class: "muted small" }, bridge ? "Desktop app: everything works offline except chess.com import and Claude." : "Running in a browser. For Claude and offline use, run the desktop app (npm run app)."),
       ),
     ),

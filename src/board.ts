@@ -5,6 +5,7 @@ import type { Api } from "@lichess-org/chessground/api";
 import type { Config } from "@lichess-org/chessground/config";
 import type { Key } from "@lichess-org/chessground/types";
 import { formatScore, winPercent, type Line } from "./engine";
+import { icon, type IconName } from "./ui/visuals";
 
 export type Color = "white" | "black";
 export const colorOf = (c: "w" | "b"): Color => (c === "w" ? "white" : "black");
@@ -92,8 +93,20 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
   return el;
 }
 
+// Buttons pick up an icon from their label, so every screen stays consistent.
+const BUTTON_ICONS: [RegExp, IconName][] = [
+  [/^Hint$/, "Lightbulb"], [/^Take back$/, "Undo2"], [/^Flip$/, "ArrowDownUp"], [/^Resign$/, "Flag"],
+  [/^New game$/, "Plus"], [/Review/, "Star"], [/^Solution$/, "Eye"], [/^Skip$/, "SkipForward"],
+  [/^Next/, "ChevronRight"], [/^Analyse$/, "ChartLine"], [/^Restart/, "RotateCcw"], [/^New position$/, "Shuffle"],
+  [/^Finish/, "Scale"], [/^Copy/, "Copy"], [/^Load/, "Upload"], [/^Show best$/, "Sparkles"], [/^Again$/, "Repeat"],
+  [/^Practise/, "Dumbbell"], [/^Play on/, "Bot"], [/^Another/, "Shuffle"], [/^Try one/, "Target"], [/^Reset$/, "RotateCcw"],
+  [/^Test the coach$/, "MessageCircle"], [/^Save key$/, "KeyRound"], [/^Remove key$/, "Trash2"], [/^Example$/, "BookOpen"],
+  [/^Explain|^Why|^Summarise|^Key ideas|^Give me a nudge|^What's the plan/, "Sparkles"],
+];
+
 export function button(label: string, onClick: () => void, cls = "") {
-  const b = h("button", { class: `btn ${cls}`.trim(), type: "button" }, label);
+  const name = BUTTON_ICONS.find(([re]) => re.test(label.replace(/^★\s*/, "")))?.[1];
+  const b = h("button", { class: `btn ${cls}`.trim(), type: "button" }, ...(name ? [icon(name, 16)] : []), label.replace(/^★\s*/, "").replace(/\s*→$/, ""));
   b.onclick = onClick;
   return b;
 }

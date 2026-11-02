@@ -5,6 +5,8 @@ import { engine } from "./engine";
 import { openInAnalysis } from "./router";
 import { load, save } from "./store";
 import { bridge } from "./ai/coach";
+import { title } from "./ui/title";
+import { icon, piece } from "./ui/visuals";
 
 // Rough strength ladder: Stockfish skill level plus a search limit.
 export const LEVELS = [
@@ -61,6 +63,7 @@ export function mountPlay(root: HTMLElement) {
       side.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
     });
     b.title = `Play as ${s}`;
+    b.replaceChildren(s === "random" ? icon("Shuffle", 18) : piece(s, "king", 26));
     if (settings.side === s) b.classList.add("on");
     side.append(b);
   }
@@ -160,7 +163,9 @@ export function mountPlay(root: HTMLElement) {
       const caps = c === "white" ? mat.white : mat.black;
       const adv = c === "white" ? mat.diff : -mat.diff;
       const turn = !over && colorOf(chess.turn()) === c;
-      return [h("span", { class: `dot ${c}${turn ? " turn" : ""}` }), h("b", {}, name), h("span", { class: "caps" }, caps), adv > 0 ? h("span", { class: "adv" }, `+${adv}`) : ""];
+      const human = c === me || !!(settings.maia && bridge);
+      const avatar = h("span", { class: `avatar ${c === me ? "me" : human ? "maia" : "bot"}${turn ? " turn" : ""}` }, icon(human ? "User" : "Bot", 20));
+      return [avatar, h("b", {}, name), h("span", { class: `dot ${c}` }), h("span", { class: "caps" }, caps), adv > 0 ? h("span", { class: "adv" }, `+${adv}`) : ""];
     };
     const opp: Color = me === "white" ? "black" : "white";
     topBar.replaceChildren(...bar(opp, opponentName()));
@@ -178,7 +183,7 @@ export function mountPlay(root: HTMLElement) {
     h("div", { class: "layout" },
       h("div", { class: "board-col" }, topBar, boardEl, bottomBar),
       h("aside", { class: "panel" },
-        h("h2", {}, "Play the computer"),
+        title("Swords", "Play the computer", "#81b64c"),
         h("label", { class: "field" }, h("span", {}, "Opponent"), level),
         h("label", { class: "field" }, h("span", {}, "Play as"), side),
         button("New game", newGame, "primary wide"),

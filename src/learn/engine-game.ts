@@ -3,6 +3,8 @@ import { Chess, type Square } from "chess.js";
 import { askPromotion, button, colorOf, createBoard, h, isPromotion, material, playSound, positionConfig, renderMoves, soundFor, type Color } from "../board";
 import { engine, formatScore, winPercent } from "../engine";
 import { openInAnalysis } from "../router";
+import { title } from "../ui/title";
+import { icon } from "../ui/visuals";
 
 export type Outcome = "win" | "draw" | "loss" | "fail";
 
@@ -159,10 +161,10 @@ export function mountEngineGame(root: HTMLElement, o: EngineGameOpts) {
 
   root.append(
     h("div", { class: "layout" },
-      h("div", { class: "board-col" }, h("div", { class: "player-bar" }, h("span", { class: `dot ${opp}` }), h("b", {}, "Stockfish")), boardEl, h("div", { class: "player-bar" }, h("span", { class: `dot ${o.me}` }), h("b", {}, "You"))),
+      h("div", { class: "board-col" }, h("div", { class: "player-bar" }, h("span", { class: "avatar bot" }, icon("Bot", 20)), h("b", {}, "Stockfish"), h("span", { class: `dot ${opp}` })), boardEl, h("div", { class: "player-bar" }, h("span", { class: "avatar me" }, icon("User", 20)), h("b", {}, "You"), h("span", { class: `dot ${o.me}` }))),
       h("aside", { class: "panel" },
         h("a", { class: "back", href: o.back.href }, `← ${o.back.label}`),
-        h("h2", {}, o.title),
+        title(o.goal === "mate" ? "Target" : "Swords", o.title, o.goal === "mate" ? "#a77fe0" : "#81b64c"),
         o.subtitle ? h("div", { class: "muted" }, o.subtitle) : "",
         o.controls ?? "",
         status,

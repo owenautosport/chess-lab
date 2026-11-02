@@ -2,10 +2,11 @@
 import { Chess, type Square } from "chess.js";
 import { button, createBoard, h, positionConfig, soundFor } from "../board";
 import { loadPuzzles, type Puzzle } from "../puzzles";
-import { LEVEL_BANDS, LEVEL_UP_STREAK, lessonByKey } from "./lessons-data";
+import { LEVEL_BANDS, LEVEL_UP_STREAK, MATES, lessonByKey } from "./lessons-data";
 import { progress } from "./progress";
 import { PuzzleRunner } from "./runner";
 import { puzzleCoach } from "../ai/puzzle-coach";
+import { title } from "../ui/title";
 
 export function mountLesson(root: HTMLElement, key: string) {
   const lesson = lessonByKey(key);
@@ -41,7 +42,7 @@ export function mountLesson(root: HTMLElement, key: string) {
       h("div", { class: "board-col" }, boardEl),
       h("aside", { class: "panel" },
         h("a", { class: "back", href: "#learn" }, "← Learn"),
-        h("h2", {}, lesson.title),
+        title(MATES.some((m) => m.key === key) ? "Crown" : "Zap", lesson.title, MATES.some((m) => m.key === key) ? "#e5534b" : "#f39c2f"),
         h("div", { class: "explain" }, h("p", {}, lesson.what), h("p", { class: "muted" }, h("b", {}, "How to spot it: "), lesson.spot)),
         levelEl,
         tabs,

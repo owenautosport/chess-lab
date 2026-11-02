@@ -7,6 +7,7 @@ import { LINE_MASTERED, progress } from "./progress";
 import { LEVELS } from "../play";
 import { load } from "../store";
 import { coachPanel, describePosition } from "../ai/coach";
+import { icon } from "../ui/visuals";
 
 export function mountOpening(root: HTMLElement, id: string, lineId?: string, mode?: string): () => void {
   const opening = OPENINGS.find((o) => o.id === id);
@@ -63,7 +64,8 @@ function mountTrainer(root: HTMLElement, o: Opening, lineId: string, mode: "lear
   const boardEl = h("div", { class: "board" });
   const board = createBoard(boardEl, { orientation: me, movable: { events: { after: (f, t) => userMove(f as Square, t as Square) } } });
 
-  const title = h("h2", {});
+  const titleText = h("span", {});
+  const title = h("h2", { class: "titled" }, icon("BookOpen", 20, "blue"), titleText);
   const sub = h("div", { class: "muted small" });
   const coach = h("div", { class: "coach" });
   const status = h("div", { class: "status" });
@@ -102,7 +104,7 @@ function mountTrainer(root: HTMLElement, o: Opening, lineId: string, mode: "lear
     ply = errors = wrongHere = 0;
     done = false;
     after.replaceChildren();
-    title.textContent = l.name;
+    titleText.textContent = l.name;
     sub.textContent = `${o.name} · ${mode === "learn" ? "Learn mode: follow the arrows" : "Practice: play from memory"}`;
     coach.className = "coach";
     coach.replaceChildren(h("div", {}, o.summary));

@@ -4,6 +4,8 @@ import { askPromotion, button, colorOf, createBoard, evalBar, h, isPromotion, po
 import { strongEngine as engine, formatScore, winPercent, type Line } from "./engine";
 import { mistakes, type Mistake } from "./store";
 import { coachPanel, describeLines, describePosition } from "./ai/coach";
+import { title } from "./ui/title";
+import { icon } from "./ui/visuals";
 
 export type AnalysisInput = { pgn?: string; fen?: string; review?: boolean; me?: Color };
 
@@ -86,8 +88,25 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     renderCoach();
     renderSummary();
     coachAi.refresh();
+    placeBadge();
     if (review) bar.set(review.evals[ply], orientation);
     runEngine();
+  }
+
+  /** Game Review badge pinned to the corner of the square the current move landed on, as on chess.com. */
+  const badge = h("div", { class: "sq-badge" });
+  function placeBadge() {
+    const v = review && ply > 0 ? review.verdicts[ply - 1] : undefined;
+    if (!v) return badge.remove();
+    const to = line[ply - 1].to;
+    const f = to.charCodeAt(0) - 97;
+    const r = +to[1] - 1;
+    const [col, row] = orientation === "white" ? [f, 7 - r] : [7 - f, r];
+    badge.className = `sq-badge ${v}`;
+    badge.replaceChildren(v === "best" ? icon("Star", 14) : v === "good" ? icon("Check", 14) : MARK[v]!.symbol);
+    badge.style.left = `${(col + 1) * 12.5}%`;
+    badge.style.top = `${row * 12.5}%`;
+    boardEl.append(badge);
   }
 
   function runEngine() {
@@ -253,7 +272,10 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     };
     const w = side("w");
     const b = side("b");
-    const row = (label: string, cls: string, a: number, bb: number) => h("tr", {}, h("td", { class: cls }, label), h("td", {}, String(a)), h("td", {}, String(bb)));
+    const row = (label: string, cls: string, a: number, bb: number) => {
+      const [sym, ...name] = label.split(" ");
+      return h("tr", {}, h("td", { class: cls }, h("i", { class: `mark ${cls}` }, sym), ` ${name.join(" ")}`), h("td", {}, String(a)), h("td", {}, String(bb)));
+    };
     summary.replaceChildren(
       h("table", { class: "review" },
         h("tr", {}, h("th", {}), h("th", {}, "White"), h("th", {}, "Black")),
@@ -369,7 +391,7 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     h("div", { class: "layout" },
       h("div", { class: "board-col with-bar" }, bar.el, boardEl),
       h("aside", { class: "panel" },
-        h("div", { class: "panel-head" }, h("h2", {}, "Analysis"), h("label", { class: "toggle" }, engineToggle, h("span", {}, "Engine"))),
+        h("div", { class: "panel-head" }, title("ChartLine", "Analysis", "#a77fe0"), h("label", { class: "toggle" }, engineToggle, h("span", {}, "Engine"))),
         linesEl,
         summary,
         graph,

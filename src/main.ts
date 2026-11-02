@@ -9,22 +9,31 @@ import { mountPuzzles } from "./puzzles";
 import { takePending } from "./router";
 import { mountLearn } from "./learn/learn";
 import { mountSettings } from "./settings";
+import { icon, piece, type IconName } from "./ui/visuals";
 
-const TABS: Record<string, { label: string; mount: (el: HTMLElement, path: string[]) => () => void }> = {
-  learn: { label: "Learn", mount: mountLearn },
-  play: { label: "Play", mount: mountPlay },
-  puzzles: { label: "Puzzles", mount: mountPuzzles },
-  analysis: { label: "Analysis", mount: (el: HTMLElement) => mountAnalysis(el, takePending()) },
-  games: { label: "My Games", mount: mountGames },
-  settings: { label: "Settings", mount: mountSettings },
+type Tab = { label: string; icon: IconName | "pawn"; color: string; mount: (el: HTMLElement, path: string[]) => () => void };
+const TABS: Record<string, Tab> = {
+  learn: { label: "Learn", icon: "GraduationCap", color: "#5aa4e0", mount: mountLearn },
+  play: { label: "Play", icon: "pawn", color: "#81b64c", mount: mountPlay },
+  puzzles: { label: "Puzzles", icon: "Puzzle", color: "#f39c2f", mount: mountPuzzles },
+  analysis: { label: "Analysis", icon: "ChartLine", color: "#a77fe0", mount: (el: HTMLElement) => mountAnalysis(el, takePending()) },
+  games: { label: "My Games", icon: "History", color: "#3fb6a8", mount: mountGames },
+  settings: { label: "Settings", icon: "Settings", color: "#a5a3a0", mount: mountSettings },
 };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-const nav = h("nav", { class: "nav" }, h("a", { class: "brand", href: "#learn" }, h("span", { class: "logo" }, "♞"), "Chess Lab"));
+const logo = h("img", { class: "logo", src: `${import.meta.env.BASE_URL}logo.png`, alt: "" });
+const nav = h("nav", { class: "nav" }, h("a", { class: "brand", href: "#learn" }, logo, h("span", {}, "Chess Lab")));
 const main = h("main", {});
 app.append(nav, main);
 
-for (const [key, t] of Object.entries(TABS)) nav.append(h("a", { href: `#${key}`, "data-tab": key }, t.label));
+for (const [key, t] of Object.entries(TABS)) {
+  const glyph = t.icon === "pawn" ? piece("white", "pawn", 24, "nav-icon") : icon(t.icon, 22, "nav-icon");
+  const link = h("a", { href: `#${key}`, "data-tab": key }, glyph, h("span", {}, t.label));
+  link.style.setProperty("--tab", t.color);
+  if (key === "settings") link.classList.add("bottom");
+  nav.append(link);
+}
 
 let unmount: (() => void) | undefined;
 function route() {
