@@ -19,17 +19,18 @@ export type SearchOpts = {
 
 export type SearchResult = { best: string; lines: Line[] } | null;
 
-const WORKER_URL = `${import.meta.env.BASE_URL}engine/stockfish-19-lite-single.js`;
+const ENGINE_URL = (name: string) => `${import.meta.env.BASE_URL}engine/${name}.js`;
 
 export class Engine {
-  private worker = new Worker(WORKER_URL);
+  private worker: Worker;
   private waiters: { test: (l: string) => boolean; resolve: (l: string) => void }[] = [];
   private onInfo?: (line: string) => void;
   private queue: Promise<unknown>;
   private generation = 0;
   private searching = false;
 
-  constructor() {
+  constructor(build = "stockfish-19-lite-single") {
+    this.worker = new Worker(ENGINE_URL(build));
     this.worker.onmessage = (e) => this.receive(String(e.data));
     this.queue = (async () => {
       this.send("uci");
@@ -136,4 +137,9 @@ export function formatScore(line: Pick<Line, "cp" | "mate">): string {
 }
 
 let shared: Engine | undefined;
+/** Fast engine for play, drills and puzzles. */
 export const engine = () => (shared ??= new Engine());
+
+let strong: Engine | undefined;
+/** Full-network Stockfish for Analysis and Game Review: stronger, slower to load. */
+export const strongEngine = () => (strong ??= new Engine("stockfish-19-single"));

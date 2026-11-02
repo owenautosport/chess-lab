@@ -21,6 +21,9 @@ type Bridge = {
   listModels(p: Provider): Promise<{ ok: boolean; models: string[]; error?: string }>;
   cancel(id: string): Promise<void>;
   chesscom(path: string): Promise<{ status: number; body: unknown }>;
+  warm(): Promise<boolean>;
+  maiaLevels(): Promise<number[]>;
+  maiaMove(fen: string, elo: number): Promise<string>;
   chat(id: string, system: string, messages: Msg[], onText: (t: string) => void): Promise<{ ok: boolean; error?: string }>;
 };
 
@@ -185,7 +188,11 @@ export function coachPanel(opts: { actions: () => CoachAction[]; context: () => 
       input.value = "";
     }
   };
-  el.addEventListener("toggle", () => el.open && refresh());
+  el.addEventListener("toggle", () => {
+    if (!el.open) return;
+    refresh();
+    bridge?.warm(); // start loading the local model now, so the first answer is quick
+  });
   refresh();
   return { el, refresh, ask };
 }

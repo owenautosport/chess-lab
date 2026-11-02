@@ -1,7 +1,7 @@
 // Analysis board: free moves, live multi-line engine, PGN/FEN import, and full game review.
 import { Chess, validateFen, type Move, type Square } from "chess.js";
 import { askPromotion, button, colorOf, createBoard, evalBar, h, isPromotion, positionConfig, pvToSan, renderMoves, soundFor, uciOf, type Color, type MoveMark } from "./board";
-import { engine, formatScore, winPercent, type Line } from "./engine";
+import { strongEngine as engine, formatScore, winPercent, type Line } from "./engine";
 import { mistakes, type Mistake } from "./store";
 import { coachPanel, describeLines, describePosition } from "./ai/coach";
 
@@ -108,7 +108,7 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
       live = { fen, lines };
       bar.set(lines[0], orientation);
       linesEl.replaceChildren(
-        h("div", { class: "muted small" }, `Stockfish 19 · depth ${lines[0].depth}`),
+        h("div", { class: "muted small" }, `Stockfish 19 (full network) · depth ${lines[0].depth}`),
         ...lines.map((l) => h("div", { class: "line" }, h("b", { class: (winPercent(l) >= 50 ? "w" : "b") + " score" }, formatScore(l)), h("span", {}, pvToSan(fen, l.pv)))),
       );
       const best = lines[0].pv[0];

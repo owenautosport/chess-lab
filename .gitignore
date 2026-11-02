@@ -26,3 +26,5 @@ dist-ssr
 # desktop app
 electron-dist
 release
+engines
+public/engine/stockfish-19-single.*

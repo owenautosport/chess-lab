@@ -6,7 +6,7 @@ const PROVIDERS: { key: Provider; label: string; blurb: string }[] = [
   { key: "off", label: "Off", blurb: "No AI coach. Everything else works as normal." },
   { key: "lmstudio", label: "LM Studio", blurb: "Runs on this Mac, works offline. Start the server in LM Studio (or run: lms server start)." },
   { key: "ollama", label: "Ollama", blurb: "Runs on this Mac, works offline. Download a model first, e.g. ollama pull qwen3:8b." },
-  { key: "claude", label: "Claude", blurb: "Anthropic's Claude via the API. Best explanations; needs internet and an API key (pay as you go)." },
+  { key: "claude", label: "Claude", blurb: "Anthropic's Claude via the API. Best explanations; needs internet and an API key (pay as you go). When you're offline, your LM Studio model answers instead." },
 ];
 
 export function mountSettings(root: HTMLElement) {
@@ -67,7 +67,7 @@ export function mountSettings(root: HTMLElement) {
     modelMsg.textContent = res.ok ? (list.length ? "" : "No models found. Download one first.") : res.error ?? "";
     // Pick a sensible default the first time.
     if (!current && list.length) {
-      const preferred = list.find((m) => /qwen3\.6|claude-opus-5-5/.test(m)) ?? list[0];
+      const preferred = list.find((m) => /gemma-4-31b|claude-opus-5-5/.test(m)) ?? list[0];
       modelSel.value = preferred;
       await ai.save({ models: { [p]: preferred } });
       s = await ai.settings();

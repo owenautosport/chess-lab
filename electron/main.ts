@@ -2,7 +2,10 @@
 // (LM Studio / Ollama locally, or Claude) in the main process so keys never reach the page.
 import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, shell } from "electron";
 import Anthropic from "@anthropic-ai/sdk";
+import { spawn, execFile, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -28,8 +31,8 @@ type Settings = {
 };
 
 const DEFAULTS: Settings = {
-  provider: "off",
-  models: { claude: "claude-opus-5-5" },
+  provider: "lmstudio",
+  models: { claude: "claude-opus-5-5", lmstudio: "gemma-4-31b-it-mlx" },
   urls: { lmstudio: "http://localhost:1234/v1", ollama: "http://localhost:11434/v1" },
 };
 const settingsFile = () => path.join(app.getPath("userData"), "ai-settings.json");
@@ -74,6 +77,7 @@ ipcMain.handle("ai:models", async (_e, provider: Provider): Promise<{ ok: boolea
       return { ok: true, models: ids };
     }
     if (provider === "lmstudio" || provider === "ollama") {
+      await ensureLocal(s, provider);
       const res = await net.fetch(`${s.urls[provider]}/models`);
       const body = (await res.json()) as { data: { id: string }[] };
       // Embedding models can't chat.
@@ -82,6 +86,49 @@ ipcMain.handle("ai:models", async (_e, provider: Provider): Promise<{ ok: boolea
     return { ok: true, models: [] };
   } catch (e) {
     return { ok: false, models: [], error: describeError(e, provider) };
+  }
+});
+
+// ---------- keeping the local model ready ----------
+
+const LMS = path.join(os.homedir(), ".lmstudio", "bin", "lms");
+
+async function reachable(url: string) {
+  try {
+    return (await net.fetch(`${url}/models`, { signal: AbortSignal.timeout(2000) })).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Start LM Studio's server if it isn't running (it works fully offline). */
+async function ensureLocal(s: Settings, provider: "lmstudio" | "ollama") {
+  if (await reachable(s.urls[provider])) return true;
+  if (provider === "lmstudio" && existsSync(LMS)) execFile(LMS, ["server", "start"], () => {});
+  if (provider === "ollama") execFile("open", ["-ga", "Ollama"], () => {});
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (await reachable(s.urls[provider])) return true;
+  }
+  return false;
+}
+
+/** Load the chosen local model in the background so the first question doesn't wait for it. */
+ipcMain.handle("ai:warm", async () => {
+  const s = await loadSettings();
+  const provider = s.provider === "claude" ? "lmstudio" : s.provider;
+  if (provider !== "lmstudio" && provider !== "ollama") return false;
+  const model = s.models[provider];
+  if (!model || !(await ensureLocal(s, provider))) return false;
+  try {
+    await net.fetch(`${s.urls[provider]}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: 1, messages: [{ role: "user", content: "hi" }] }),
+    });
+    return true;
+  } catch {
+    return false;
   }
 });
 
@@ -98,7 +145,16 @@ ipcMain.handle("ai:chat", async (e, req: ChatRequest): Promise<{ ok: boolean; er
   running.set(req.id, abort);
   const send = (text: string) => !e.sender.isDestroyed() && e.sender.send("ai:chunk", { id: req.id, text });
   try {
-    if (s.provider === "claude") await chatClaude(s, req, abort.signal, send);
+    if (s.provider === "claude") {
+      try {
+        await chatClaude(s, req, abort.signal, send);
+      } catch (err) {
+        // Offline (or Claude unreachable): answer with the local model instead, if one is set up.
+        if (!(err instanceof Anthropic.APIConnectionError) || abort.signal.aborted || !s.models.lmstudio) throw err;
+        send(`(Offline, so ${s.models.lmstudio} is answering.)\n\n`);
+        await chatLocal({ ...s, provider: "lmstudio" }, req, abort.signal, send);
+      }
+    }
     else if (s.provider === "lmstudio" || s.provider === "ollama") await chatLocal(s, req, abort.signal, send);
     else return { ok: false, error: "The coach is off. Choose a model in Settings." };
     return { ok: true };
@@ -139,6 +195,7 @@ async function chatLocal(s: Settings, req: ChatRequest, signal: AbortSignal, sen
   const provider = s.provider as "lmstudio" | "ollama";
   const model = s.models[provider];
   if (!model) throw new Error("Choose a model in Settings.");
+  if (!(await ensureLocal(s, provider))) throw new Error("ECONNREFUSED");
   const res = await net.fetch(`${s.urls[provider]}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -202,6 +259,78 @@ function describeError(e: unknown, provider: Provider): string {
   }
   return msg;
 }
+
+// ---------- Maia: human-like opponents via lc0 ----------
+
+// Packaged: Resources/engines; dev: ./engines (filled by scripts/fetch-engines.sh).
+const ENGINES = app.isPackaged ? path.join(process.resourcesPath, "engines") : path.join(here, "..", "engines");
+const MAIA_LEVELS = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900];
+
+class Lc0 {
+  private proc?: ChildProcessWithoutNullStreams;
+  private buffer = "";
+  private waiter?: { test: (l: string) => boolean; resolve: (l: string) => void };
+  private weights?: string;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private start() {
+    this.proc = spawn(path.join(ENGINES, "lc0"), [], { stdio: "pipe" });
+    this.proc.stdout.on("data", (d: Buffer) => {
+      this.buffer += d.toString();
+      const lines = this.buffer.split("\n");
+      this.buffer = lines.pop() ?? "";
+      for (const l of lines) if (this.waiter?.test(l.trim())) this.waiter.resolve(l.trim());
+    });
+    this.proc.on("exit", () => (this.proc = undefined, this.weights = undefined));
+  }
+
+  private send(cmd: string) {
+    this.proc!.stdin.write(cmd + "\n");
+  }
+
+  private wait(test: (l: string) => boolean, ms = 20000) {
+    return new Promise<string>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("lc0 timed out")), ms);
+      this.waiter = { test, resolve: (l) => (clearTimeout(t), resolve(l)) };
+    });
+  }
+
+  /** Maia's most likely human move: one node = the policy network's top choice. */
+  move(fen: string, elo: number): Promise<string> {
+    const run = async () => {
+      if (!this.proc) {
+        this.start();
+        this.send("uci");
+        await this.wait((l) => l === "uciok");
+      }
+      const weights = path.join(ENGINES, "maia", `maia-${elo}.pb.gz`);
+      if (weights !== this.weights) {
+        this.send(`setoption name WeightsFile value ${weights}`);
+        this.weights = weights;
+      }
+      this.send("isready");
+      await this.wait((l) => l === "readyok");
+      this.send(`position fen ${fen}`);
+      this.send("go nodes 1");
+      return (await this.wait((l) => l.startsWith("bestmove"))).split(" ")[1];
+    };
+    const p = this.queue.then(run, run);
+    this.queue = p.catch(() => {});
+    return p;
+  }
+
+  stop() {
+    this.proc?.kill();
+  }
+}
+
+const lc0 = new Lc0();
+ipcMain.handle("maia:levels", () => (existsSync(path.join(ENGINES, "lc0")) ? MAIA_LEVELS.filter((e) => existsSync(path.join(ENGINES, "maia", `maia-${e}.pb.gz`))) : []));
+ipcMain.handle("maia:move", (_e, fen: string, elo: number) => {
+  if (!MAIA_LEVELS.includes(elo)) throw new Error("Unknown Maia level");
+  return lc0.move(fen, elo);
+});
+app.on("before-quit", () => lc0.stop());
 
 // ---------- chess.com (no CORS issues from the main process) ----------
 

@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-engine.mjs",
+    "prebuild": "node scripts/copy-engine.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
@@ -44,6 +46,12 @@
       "target": "dir",
       "category": "public.app-category.board-games",
       "icon": "build/icon.png"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "engines",
+        "to": "engines"
+      }
+    ]
   }
 }

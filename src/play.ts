@@ -1,9 +1,10 @@
-// Play against Stockfish at a chosen strength.
+// Play against Stockfish at a chosen strength, or Maia (human-like, desktop app only).
 import { Chess, type Move, type Square } from "chess.js";
 import { askPromotion, button, colorOf, createBoard, h, isPromotion, material, playSound, positionConfig, renderMoves, soundFor, type Color } from "./board";
 import { engine } from "./engine";
 import { openInAnalysis } from "./router";
 import { load, save } from "./store";
+import { bridge } from "./ai/coach";
 
 // Rough strength ladder: Stockfish skill level plus a search limit.
 export const LEVELS = [
@@ -18,7 +19,7 @@ export const LEVELS = [
 ];
 
 export function mountPlay(root: HTMLElement) {
-  const settings = load("play", { level: 3, side: "white" as Color | "random" });
+  const settings = load("play", { level: 3, side: "white" as Color | "random", maia: 0 }); // maia: Elo, 0 = Stockfish
   const chess = new Chess();
   let me: Color = "white";
   let thinking = false;
@@ -32,8 +33,25 @@ export function mountPlay(root: HTMLElement) {
   const status = h("div", { class: "status" });
 
   const level = h("select", { class: "select" }) as HTMLSelectElement;
-  LEVELS.forEach((l, i) => level.append(new Option(l.name, String(i), false, i === settings.level)));
-  level.onchange = () => save("play", { ...settings, level: (settings.level = +level.value) });
+  const sf = h("optgroup", { label: "Stockfish" }) as HTMLOptGroupElement;
+  LEVELS.forEach((l, i) => sf.append(new Option(l.name, `sf:${i}`, false, !settings.maia && i === settings.level)));
+  level.append(sf);
+  // Maia plays like a human of a given rating: it makes the moves real players make, mistakes included.
+  bridge?.maiaLevels().then((elos) => {
+    if (!elos.length) return;
+    const g = h("optgroup", { label: "Human-like (Maia)" }) as HTMLOptGroupElement;
+    for (const e of elos) g.append(new Option(`Maia ${e}`, `maia:${e}`, false, settings.maia === e));
+    level.append(g);
+    sync();
+  });
+  level.onchange = () => {
+    const [kind, v] = level.value.split(":");
+    if (kind === "maia") settings.maia = +v;
+    else (settings.maia = 0), (settings.level = +v);
+    save("play", settings);
+    sync();
+  };
+  const opponentName = () => (settings.maia && bridge ? `Maia ${settings.maia} · plays like a human` : `Stockfish · ${LEVELS[settings.level].name.split(" · ")[1]}`);
 
   const side = h("div", { class: "seg" });
   for (const s of ["white", "random", "black"] as const) {
@@ -72,7 +90,11 @@ export function mountPlay(root: HTMLElement) {
     sync();
     const lvl = LEVELS[settings.level];
     const started = performance.now();
-    const res = await engine().search(chess.fen(), { skill: lvl.skill, depth: lvl.depth, movetime: lvl.movetime });
+    const fen = chess.fen();
+    const res = settings.maia && bridge
+      ? { best: await bridge.maiaMove(fen, settings.maia).catch(() => "(none)"), lines: [] }
+      : await engine().search(fen, { skill: lvl.skill, depth: lvl.depth, movetime: lvl.movetime });
+    if (fen !== chess.fen()) return; // a new game started meanwhile
     // Don't let instant replies feel robotic.
     await new Promise((r) => setTimeout(r, Math.max(0, 350 - (performance.now() - started))));
     thinking = false;
@@ -141,7 +163,7 @@ export function mountPlay(root: HTMLElement) {
       return [h("span", { class: `dot ${c}${turn ? " turn" : ""}` }), h("b", {}, name), h("span", { class: "caps" }, caps), adv > 0 ? h("span", { class: "adv" }, `+${adv}`) : ""];
     };
     const opp: Color = me === "white" ? "black" : "white";
-    topBar.replaceChildren(...bar(opp, `Stockfish · ${LEVELS[settings.level].name.split(" · ")[1]}`));
+    topBar.replaceChildren(...bar(opp, opponentName()));
     bottomBar.replaceChildren(...bar(me, "You"));
 
     const end = endNote || result();
@@ -157,7 +179,7 @@ export function mountPlay(root: HTMLElement) {
       h("div", { class: "board-col" }, topBar, boardEl, bottomBar),
       h("aside", { class: "panel" },
         h("h2", {}, "Play the computer"),
-        h("label", { class: "field" }, h("span", {}, "Strength"), level),
+        h("label", { class: "field" }, h("span", {}, "Opponent"), level),
         h("label", { class: "field" }, h("span", {}, "Play as"), side),
         button("New game", newGame, "primary wide"),
         status,

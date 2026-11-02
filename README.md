@@ -11,12 +11,20 @@ npm run dist:mac   # build release/mac-arm64/Chess Lab.app
 
 npm 11 blocks install scripts, so after a fresh `npm install` run `node node_modules/electron/install.js` once to fetch Electron.
 
+Before `npm run dist:mac`, fetch the bundled engines (kept out of git): `brew install lc0 && scripts/fetch-engines.sh`.
+
+## Chess engines
+
+- **Stockfish 19 lite** (1.8 MB): play levels, drills, puzzles.
+- **Stockfish 19 full network** (99 MB, copied from `node_modules` by `scripts/copy-engine.mjs`): Analysis and Game Review.
+- **Maia 1100–1900** via **lc0** (desktop app only): neural nets trained on human games, so they play like real club players of that rating, mistakes included. Pick them under Play → Opponent. GPL-3.0 ([CSSLab/maia-chess](https://github.com/CSSLab/maia-chess)).
+
 ## AI coach
 
 Settings → AI coach picks the model behind the 🎓 coach panels (Analysis, Puzzles, lessons, opening trainer):
 
-- **LM Studio** or **Ollama**: local and offline. Uses their OpenAI-compatible servers (`localhost:1234/v1`, `localhost:11434/v1`).
-- **Claude**: via the Anthropic API (official SDK, `claude-opus-5-5` by default). Needs internet and an API key; the key is encrypted with the macOS keychain (Electron `safeStorage`) and only used in the main process.
+- **LM Studio** or **Ollama**: local and offline. Uses their OpenAI-compatible servers (`localhost:1234/v1`, `localhost:11434/v1`). The app starts LM Studio's server if it isn't running and loads the model as soon as you open a coach panel. Default: Gemma 4 31B (no hidden reasoning, so answers start quickly).
+- **Claude**: via the Anthropic API (official SDK, `claude-opus-5-5` by default). Needs internet and an API key; if you're offline it falls back to the LM Studio model. The key is encrypted with the macOS keychain (Electron `safeStorage`) and only used in the main process.
 
 The coach never calculates: every prompt includes Stockfish's evaluation and lines (or the verified puzzle solution) and the model is told to explain them, not contradict them.
 
