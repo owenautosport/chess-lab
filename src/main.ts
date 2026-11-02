@@ -8,6 +8,7 @@ import { mountPlay } from "./play";
 import { mountPuzzles } from "./puzzles";
 import { takePending } from "./router";
 import { mountLearn } from "./learn/learn";
+import { mountSettings } from "./settings";
 
 const TABS: Record<string, { label: string; mount: (el: HTMLElement, path: string[]) => () => void }> = {
   learn: { label: "Learn", mount: mountLearn },
@@ -15,6 +16,7 @@ const TABS: Record<string, { label: string; mount: (el: HTMLElement, path: strin
   puzzles: { label: "Puzzles", mount: mountPuzzles },
   analysis: { label: "Analysis", mount: (el: HTMLElement) => mountAnalysis(el, takePending()) },
   games: { label: "My Games", mount: mountGames },
+  settings: { label: "Settings", mount: mountSettings },
 };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;

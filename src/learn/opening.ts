@@ -6,6 +6,7 @@ import { OPENINGS, type Opening, type OpeningLine } from "./openings-data";
 import { LINE_MASTERED, progress } from "./progress";
 import { LEVELS } from "../play";
 import { load } from "../store";
+import { coachPanel, describePosition } from "../ai/coach";
 
 export function mountOpening(root: HTMLElement, id: string, lineId?: string, mode?: string): () => void {
   const opening = OPENINGS.find((o) => o.id === id);
@@ -69,9 +70,23 @@ function mountTrainer(root: HTMLElement, o: Opening, lineId: string, mode: "lear
   const moves = h("div", { class: "moves" });
   const progressEl = h("div", { class: "meter" }, h("i"));
   const after = h("div", { class: "row" });
+  const coachAi = coachPanel({
+    placeholder: "Ask about this opening…",
+    context: () =>
+      [
+        `Opening: ${o.name}, line "${line.name}". The player is learning it as ${me}. Book move order (main line theory, ground truth): ${sans.join(" ")}.`,
+        `Moves played so far: ${chess.history().join(" ") || "(none)"}.`,
+        sans[ply] ? `Next book move: ${sans[ply]}.` : "The line is complete.",
+        describePosition(chess.fen()),
+      ].join("\n"),
+    actions: () => [
+      { label: sans[ply] ? `Why ${sans[ply]}?` : "What's the plan now?", prompt: sans[ply] ? `Why is ${sans[ply]} the book move here? What does it do, and what's wrong with the natural alternatives?` : "The opening line is finished. What are the typical plans for each side from here?" },
+      { label: "Key ideas", prompt: `What are the 3 most important ideas to remember in the ${o.name} for ${me}?` },
+    ],
+  });
   const panel = h("aside", { class: "panel" },
     h("a", { class: "back", href: `#learn/opening/${o.id}` }, `← ${o.name}`),
-    title, sub, progressEl, status, coach, moves, after,
+    title, sub, progressEl, status, coach, moves, after, coachAi.el,
     h("div", { class: "row" }, button("Hint", hint), button("Restart line", () => begin(line))),
   );
   const layout = h("div", { class: "layout" }, h("div", { class: "board-col" }, boardEl), panel);
@@ -205,6 +220,7 @@ function mountTrainer(root: HTMLElement, o: Opening, lineId: string, mode: "lear
   }
 
   function sync() {
+    coachAi.refresh();
     board.set(positionConfig(chess, done || !myTurn() ? undefined : me));
     const hist = chess.history();
     renderMoves(moves, hist, hist.length);

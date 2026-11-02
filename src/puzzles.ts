@@ -3,6 +3,7 @@ import { Chess, type Square } from "chess.js";
 import { askPromotion, button, colorOf, createBoard, h, isPromotion, playSound, positionConfig, soundFor, uciOf, type Color } from "./board";
 import { engine, winPercent, type Line } from "./engine";
 import { openInAnalysis } from "./router";
+import { puzzleCoach } from "./ai/puzzle-coach";
 import { load, mistakes, save, type Mistake } from "./store";
 
 type Raw = [id: string, fen: string, moves: string, rating: number, themes: string];
@@ -249,7 +250,10 @@ export function mountPuzzles(root: HTMLElement) {
   autoNext.checked = load("puzzleAuto", { on: true }).on;
   autoNext.onchange = () => save("puzzleAuto", { on: autoNext.checked });
 
+  const coachAi = puzzleCoach(() => ({ puzzle: puzzle && !puzzle.mistake ? puzzle : undefined, done }));
+
   function renderActions() {
+    coachAi.refresh();
     const analyse = button("Analyse", () => puzzle && openInAnalysis({ fen: puzzle.fen }));
     actions.replaceChildren(...(done ? [button("Next puzzle →", next, "primary"), analyse] : [button("Hint", hint), button("Solution", showSolution), button("Skip", next)]));
   }
@@ -311,6 +315,7 @@ export function mountPuzzles(root: HTMLElement) {
         actions,
         h("label", { class: "toggle small" }, autoNext, h("span", {}, "Next puzzle automatically after a clean solve")),
         weak,
+        coachAi.el,
         h("div", { class: "muted tiny" }, "Puzzles from the Lichess open database (CC0)."),
       ),
     ),

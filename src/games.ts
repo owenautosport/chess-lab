@@ -2,6 +2,7 @@
 import { button, h, type Color } from "./board";
 import { openInAnalysis } from "./router";
 import { load, save } from "./store";
+import { bridge } from "./ai/coach";
 
 type Side = { username: string; rating: number; result: string };
 export type ChessComGame = {
@@ -32,6 +33,13 @@ export function describe(g: ChessComGame, username: string) {
 
 /** Fetch via the dev-server relay first, then directly (chess.com allows CORS). */
 async function api<T>(path: string): Promise<T> {
+  if (bridge) {
+    // Desktop app: the main process fetches it, no proxy or CORS needed.
+    const res = await bridge.chesscom(path);
+    if (res.status === 404) throw new Error("not-found");
+    if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+    return res.body as T;
+  }
   const urls = [`${import.meta.env.BASE_URL}chesscom${path}`, `https://api.chess.com${path}`];
   let last: unknown;
   for (const url of urls) {

@@ -3,6 +3,7 @@ import { Chess, validateFen, type Move, type Square } from "chess.js";
 import { askPromotion, button, colorOf, createBoard, evalBar, h, isPromotion, positionConfig, pvToSan, renderMoves, soundFor, uciOf, type Color, type MoveMark } from "./board";
 import { engine, formatScore, winPercent, type Line } from "./engine";
 import { mistakes, type Mistake } from "./store";
+import { coachPanel, describeLines, describePosition } from "./ai/coach";
 
 export type AnalysisInput = { pgn?: string; fen?: string; review?: boolean; me?: Color };
 
@@ -84,6 +85,7 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     renderMoves(moves, line.map((m) => m.san), ply, goTo, review?.verdicts.map((v) => MARK[v]) ?? [], startFen.split(" ")[1] === "b", +startFen.split(" ")[5]);
     renderCoach();
     renderSummary();
+    coachAi.refresh();
     if (review) bar.set(review.evals[ply], orientation);
     runEngine();
   }
@@ -103,6 +105,7 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     const fen = chess.fen();
     engine().search(fen, { depth: 22, multipv: 3 }, (lines) => {
       if (fen !== chess.fen()) return;
+      live = { fen, lines };
       bar.set(lines[0], orientation);
       linesEl.replaceChildren(
         h("div", { class: "muted small" }, `Stockfish 19 · depth ${lines[0].depth}`),
@@ -159,6 +162,76 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
     });
     mistakes.add(found);
     sync();
+  }
+
+  // ---------- AI coach ----------
+
+  let live: { fen: string; lines: Line[] } = { fen: "", lines: [] };
+
+  /** Stockfish lines for a position: live analysis if it's current, otherwise a quick search. */
+  async function linesFor(fen: string): Promise<Line[]> {
+    if (live.fen === fen && live.lines[0]?.depth >= 14) return live.lines;
+    const res = await engine().search(fen, { depth: 16, multipv: 3 });
+    runEngine(); // the coach's search interrupted live analysis; restart it
+    return res?.lines ?? [];
+  }
+
+  async function moveContext(): Promise<string> {
+    const i = ply - 1;
+    const m = line[i];
+    const before = chessAt(i).fen();
+    const after = chess.fen();
+    const [b, a] = [await linesFor(before), await linesFor(after)];
+    const verdict = review?.verdicts[i];
+    return [
+      "The position BEFORE the move:",
+      describePosition(before),
+      describeLines(before, b),
+      "",
+      `Move played: ${Math.ceil(ply / 2)}${m.color === "w" ? "." : "..."} ${m.san} (by ${m.color === "w" ? "White" : "Black"})${verdict ? `, classified by Game Review as: ${verdict}` : ""}.`,
+      "",
+      "The position AFTER the move:",
+      describePosition(after),
+      describeLines(after, a),
+    ].join("\n");
+  }
+
+  const coachAi = coachPanel({
+    context: async () => {
+      const fen = chess.fen();
+      const recent = line.slice(Math.max(0, ply - 10), ply).map((m) => m.san).join(" ");
+      return [describePosition(fen), recent ? `Recent moves: ${recent}` : "", describeLines(fen, await linesFor(fen))].filter(Boolean).join("\n");
+    },
+    actions: () => [
+      { label: "Explain this position", prompt: "What's going on in this position? Who stands better and why, and what should the side to move be trying to do?" },
+      ...(ply > 0
+        ? [{ label: "Explain the last move", prompt: async () => `${await moveContext()}\n\nExplain the move that was played: what did it try to do, and how does it compare with Stockfish's best move in the position before? If it was a mistake, explain clearly what it allowed.` }]
+        : []),
+      ...(review
+        ? [{ label: "Summarise my game", prompt: () => gameSummaryPrompt() }]
+        : []),
+    ],
+  });
+
+  function gameSummaryPrompt(): string {
+    const r = review!;
+    const bad = line
+      .map((m, i) => ({ m, i, v: r.verdicts[i] }))
+      .filter((x) => x.v === "mistake" || x.v === "blunder" || x.v === "inaccuracy")
+      .filter((x) => me === "both" || colorOf(x.m.color) === me)
+      .slice(0, 12)
+      .map(({ m, i, v }) => {
+        const before = chessAt(i).fen();
+        return `- Move ${Math.ceil((i + 1) / 2)}${m.color === "w" ? "." : "..."} ${m.san} (${v}). Eval before ${formatScore(r.evals[i])}, after ${formatScore(r.evals[i + 1])}. Stockfish preferred ${pvToSan(before, [r.best[i]]).replace(/^\d+\.+\s*/, "")}.`;
+      });
+    return [
+      `Game (PGN moves): ${line.map((m) => m.san).join(" ")}`,
+      `I played: ${me === "both" ? "both sides / not specified" : me}.`,
+      "Stockfish Game Review found these errors:",
+      ...(bad.length ? bad : ["- none worth mentioning"]),
+      "",
+      "Summarise this game for me as a coach would: the 2-3 most important lessons, what patterns to practise, and one thing I did well. Under 180 words.",
+    ].join("\n");
   }
 
   const accuracy = (losses: number[]) =>
@@ -301,6 +374,7 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
         summary,
         graph,
         coach,
+        coachAi.el,
         moves,
         h("div", { class: "row" },
           button("⏮", () => goTo(0)), button("◀", () => goTo(ply - 1)), button("▶", () => goTo(ply + 1)), button("⏭", () => goTo(line.length)), button("Flip", flip),

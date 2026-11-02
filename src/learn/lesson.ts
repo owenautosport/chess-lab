@@ -5,6 +5,7 @@ import { loadPuzzles, type Puzzle } from "../puzzles";
 import { LEVEL_BANDS, LEVEL_UP_STREAK, lessonByKey } from "./lessons-data";
 import { progress } from "./progress";
 import { PuzzleRunner } from "./runner";
+import { puzzleCoach } from "../ai/puzzle-coach";
 
 export function mountLesson(root: HTMLElement, key: string) {
   const lesson = lessonByKey(key);
@@ -18,6 +19,8 @@ export function mountLesson(root: HTMLElement, key: string) {
   let alive = true;
   const recent: string[] = [];
 
+  let current: Puzzle | undefined;
+  const coachAi = puzzleCoach(() => ({ puzzle: runner ? current : undefined, done: !!runner?.done }));
   const boardEl = h("div", { class: "board" });
   const board = createBoard(boardEl, { movable: { events: { after: (f, t) => runner?.move(f as Square, t as Square) } } });
 
@@ -44,6 +47,7 @@ export function mountLesson(root: HTMLElement, key: string) {
         tabs,
         status,
         controls,
+        coachAi.el,
       ),
     ),
   );
@@ -120,6 +124,7 @@ export function mountLesson(root: HTMLElement, key: string) {
     runner?.stop();
     setTab("pr");
     const p = pick();
+    current = p;
     recent.push(p.id);
     if (recent.length > 30) recent.shift();
     const r = new PuzzleRunner(board, boardEl, p.solution, p.fen, {
@@ -150,12 +155,14 @@ export function mountLesson(root: HTMLElement, key: string) {
           status.textContent = `Level up! You're now on level ${progress.lesson(key).level}. Puzzles get harder from here.`;
         }
         controls.replaceChildren(button("Next puzzle →", practise, "primary"));
+        coachAi.refresh();
         if (clean && !levelled) setTimeout(() => alive && runner === r && practise(), 1100);
       },
     });
     runner = r;
     controls.replaceChildren(button("Hint", () => r.hint()), button("Solution", () => r.showSolution()), button("Skip", practise));
     r.start();
+    coachAi.refresh();
   }
 
   status.textContent = "Loading puzzles…";

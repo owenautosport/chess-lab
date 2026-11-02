@@ -4,8 +4,21 @@ A free, local chess trainer: play Stockfish, solve puzzles, and review your game
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # browser version, http://localhost:5173
+npm run app        # desktop app (Electron), works offline
+npm run dist:mac   # build release/mac-arm64/Chess Lab.app
 ```
+
+npm 11 blocks install scripts, so after a fresh `npm install` run `node node_modules/electron/install.js` once to fetch Electron.
+
+## AI coach
+
+Settings → AI coach picks the model behind the 🎓 coach panels (Analysis, Puzzles, lessons, opening trainer):
+
+- **LM Studio** or **Ollama**: local and offline. Uses their OpenAI-compatible servers (`localhost:1234/v1`, `localhost:11434/v1`).
+- **Claude**: via the Anthropic API (official SDK, `claude-opus-5-5` by default). Needs internet and an API key; the key is encrypted with the macOS keychain (Electron `safeStorage`) and only used in the main process.
+
+The coach never calculates: every prompt includes Stockfish's evaluation and lines (or the verified puzzle solution) and the model is told to explain them, not contradict them.
 
 ## What's in it
 
