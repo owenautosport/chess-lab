@@ -2,11 +2,14 @@
 
 A free, local chess trainer: play Stockfish, solve puzzles, and review your games.
 
+**Try it in your browser: https://owenautosport.github.io/chess-lab/** (the desktop app adds Maia bots and the offline AI coach).
+
 ```bash
 npm install
 npm run dev        # browser version, http://localhost:5173
 npm run app        # desktop app (Electron), works offline
 npm run dist:mac   # build release/mac-arm64/Chess Lab.app
+npm run install:mac # build, install to /Applications, remove the build copy
 ```
 
 npm 11 blocks install scripts, so after a fresh `npm install` run `node node_modules/electron/install.js` once to fetch Electron.
@@ -48,6 +51,10 @@ Progress (puzzle rating, theme stats, saved mistakes, Learn progress) lives in t
 - Rules: [chess.js](https://github.com/jhlywa/chess.js).
 - Engine: [stockfish.js](https://github.com/nmrugg/stockfish.js), lite single-threaded build in `public/engine/`.
 - Puzzles: [Lichess puzzle database](https://database.lichess.org/#puzzles) (CC0). Rebuild with `scripts/build-puzzles.mjs`.
+
+## Licence
+
+GPL-3.0 (see `LICENSE`), as required by chessground and Stockfish. Maia networks are GPL-3.0 too; Lichess puzzles are CC0.
 
 ## Checks
 

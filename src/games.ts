@@ -32,7 +32,7 @@ export function describe(g: ChessComGame, username: string) {
   return { me, mine, theirs, outcome, how };
 }
 
-/** Fetch via the dev-server relay first, then directly (chess.com allows CORS). */
+/** Fetch via the dev-server relay first (dev only), then directly (chess.com allows CORS). */
 async function api<T>(path: string): Promise<T> {
   if (bridge) {
     // Desktop app: the main process fetches it, no proxy or CORS needed.
@@ -41,7 +41,9 @@ async function api<T>(path: string): Promise<T> {
     if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
     return res.body as T;
   }
-  const urls = [`${import.meta.env.BASE_URL}chesscom${path}`, `https://api.chess.com${path}`];
+  const direct = `https://api.chess.com${path}`;
+  // A static host (GitHub Pages) has no relay, and its 404 would read as "user not found".
+  const urls = import.meta.env.DEV ? [`${import.meta.env.BASE_URL}chesscom${path}`, direct] : [direct];
   let last: unknown;
   for (const url of urls) {
     try {
