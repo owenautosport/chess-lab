@@ -12,7 +12,8 @@
     "electron:build": "tsc -p electron",
     "app": "npm run build && npm run electron:build && electron .",
     "app:dev": "npm run electron:build && ELECTRON_DEV=1 electron .",
-    "dist:mac": "npm run build && npm run electron:build && electron-builder --mac dir"
+    "dist:mac": "npm run build && npm run electron:build && electron-builder --mac dir",
+    "install:mac": "bash scripts/install-mac.sh"
   },
   "devDependencies": {
     "@lichess-org/chessground": "^10.5.0",
