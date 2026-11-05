@@ -1,7 +1,8 @@
 // Settings: choose the AI coach's provider and model, store a Claude key, test the connection.
 import { ai, bridge, SYSTEM, type AiSettings, type Provider } from "./ai/coach";
-import { button, h } from "./board";
+import { button, h, playSound, setSound, soundSettings } from "./board";
 import { title } from "./ui/title";
+import { icon } from "./ui/visuals";
 
 const PROVIDERS: { key: Provider; label: string; blurb: string }[] = [
   { key: "off", label: "Off", blurb: "No AI coach. Everything else works as normal." },
@@ -104,9 +105,41 @@ export function mountSettings(root: HTMLElement) {
     else testOut.append(h("div", { class: "muted small" }, `Answered in ${((performance.now() - started) / 1000).toFixed(1)}s`));
   }
 
+  // Sound: on/off and volume. Off means the app never opens the audio device at all.
+  const sound = soundSettings();
+  const soundSeg = h("div", { class: "seg wide" });
+  const volume = h("input", { type: "range", min: "0", max: "100", class: "range" }) as HTMLInputElement;
+  volume.value = String(Math.round(sound.volume * 100));
+  const volumeRow = h("div", { class: "row sound-row" }, h("label", { class: "field" }, h("span", {}, "Volume"), volume), button("Test sound", () => playSound("capture")));
+  const syncSound = () => {
+    soundSeg.querySelectorAll("button").forEach((b) => b.classList.toggle("on", (b.dataset.on === "1") === sound.on));
+    volumeRow.style.display = sound.on ? "" : "none";
+    setSound(sound);
+  };
+  for (const on of [true, false]) {
+    const b = button(on ? "On" : "Off", () => {
+      sound.on = on;
+      syncSound();
+    });
+    b.prepend(icon(on ? "Volume2" : "VolumeX", 16));
+    b.dataset.on = on ? "1" : "0";
+    soundSeg.append(b);
+  }
+  volume.oninput = () => {
+    sound.volume = +volume.value / 100;
+    setSound(sound);
+  };
+  volume.onchange = () => playSound("move");
+  syncSound();
+
   root.append(
     h("div", { class: "learn narrow" },
       h("header", { class: "learn-head" }, h("h1", {}, "Settings")),
+      h("div", { class: "panel" },
+        title("Volume2", "Sound", "#f39c2f"),
+        h("p", { class: "muted small" }, "Move, capture and check sounds. Turn them off and the app won't use your speakers at all, so there's no pop when you move a piece."),
+        soundSeg, volumeRow,
+      ),
       h("div", { class: "panel" },
         title("Sparkles", "AI coach", "#5aa4e0"),
         h("p", { class: "muted small" }, "The coach explains positions, moves, puzzles and your mistakes in plain English. It's always given Stockfish's analysis, so it explains rather than guesses."),

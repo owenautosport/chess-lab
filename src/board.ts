@@ -6,6 +6,7 @@ import type { Config } from "@lichess-org/chessground/config";
 import type { Key } from "@lichess-org/chessground/types";
 import { formatScore, winPercent, type Line } from "./engine";
 import { icon, type IconName } from "./ui/visuals";
+import { load, save } from "./store";
 
 export type Color = "white" | "black";
 export const colorOf = (c: "w" | "b"): Color => (c === "w" ? "white" : "black");
@@ -38,10 +39,12 @@ export function positionConfig(chess: Chess, movable?: Color | "both"): Config {
 export function createBoard(el: HTMLElement, config: Config = {}): Api {
   const api = Chessground(el, {
     animation: { enabled: true, duration: 180 },
-    movable: { free: false, showDests: true },
     premovable: { enabled: false },
     highlight: { lastMove: true, check: true },
     ...config,
+    // Merge rather than replace, or a caller's `movable.events` would drop `free: false`
+    // and let any piece be dropped on any square.
+    movable: { free: false, showDests: true, ...config.movable },
   });
   return api;
 }
@@ -100,7 +103,7 @@ const BUTTON_ICONS: [RegExp, IconName][] = [
   [/^Next/, "ChevronRight"], [/^Analyse$/, "ChartLine"], [/^Restart/, "RotateCcw"], [/^New position$/, "Shuffle"],
   [/^Finish/, "Scale"], [/^Copy/, "Copy"], [/^Load/, "Upload"], [/^Show best$/, "Sparkles"], [/^Again$/, "Repeat"],
   [/^Practise/, "Dumbbell"], [/^Play on/, "Bot"], [/^Another/, "Shuffle"], [/^Try one/, "Target"], [/^Reset$/, "RotateCcw"],
-  [/^Test the coach$/, "MessageCircle"], [/^Save key$/, "KeyRound"], [/^Remove key$/, "Trash2"], [/^Example$/, "BookOpen"],
+  [/^Test the coach$/, "MessageCircle"], [/^Test sound$/, "Volume2"], [/^Save key$/, "KeyRound"], [/^Remove key$/, "Trash2"], [/^Example$/, "BookOpen"],
   [/^Explain|^Why|^Summarise|^Key ideas|^Give me a nudge|^What's the plan/, "Sparkles"],
 ];
 
@@ -195,19 +198,37 @@ export const uciOf = (m: Pick<Move, "from" | "to" | "promotion">) => m.from + m.
 
 // ---------- sound ----------
 
+export type SoundSettings = { on: boolean; volume: number }; // volume 0–1
+export const soundSettings = () => load<SoundSettings>("sound", { on: true, volume: 0.7 });
+
+// The audio device is only opened once a sound actually plays, so with sound off
+// the app never touches it (opening it is what makes the Mac's speakers pop).
 let audio: AudioContext | undefined;
-export function playSound(kind: "move" | "capture" | "check" | "end" | "wrong") {
+export function setSound(s: SoundSettings) {
+  save("sound", s);
+  if (!s.on && audio) {
+    audio.close(); // release the audio device straight away
+    audio = undefined;
+  }
+}
+
+export function playSound(kind: "move" | "capture" | "check" | "end" | "wrong", force = false) {
+  const s = soundSettings();
+  if ((!s.on && !force) || s.volume <= 0) return;
   try {
     audio ??= new AudioContext();
-    const t = audio.currentTime;
+    if (audio.state === "suspended") audio.resume();
+    const t = audio.currentTime + 0.01;
     const o = audio.createOscillator();
     const g = audio.createGain();
     const freq = { move: 520, capture: 300, check: 760, end: 440, wrong: 180 }[kind];
     o.type = kind === "wrong" ? "square" : "triangle";
     o.frequency.setValueAtTime(freq, t);
     o.frequency.exponentialRampToValueAtTime(freq * 0.6, t + 0.08);
-    g.gain.setValueAtTime(0.18, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + (kind === "end" ? 0.4 : 0.09));
+    // Fade in over 5 ms rather than starting at full level, which clicks.
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25 * s.volume, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "end" ? 0.4 : 0.09));
     o.connect(g).connect(audio.destination);
     o.start(t);
     o.stop(t + 0.45);
