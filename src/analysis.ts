@@ -6,6 +6,7 @@ import { mistakes, type Mistake } from "./store";
 import { coachPanel, describeLines, describePosition } from "./ai/coach";
 import { title } from "./ui/title";
 import { icon } from "./ui/visuals";
+import { phaseOf, record } from "./coach/profile";
 
 export type AnalysisInput = { pgn?: string; fen?: string; review?: boolean; me?: Color };
 
@@ -180,7 +181,30 @@ export function mountAnalysis(root: HTMLElement, input: AnalysisInput = {}) {
       }
     });
     mistakes.add(found);
+    if (me !== "both") recordReview(verdicts, loss);
     sync();
+  }
+
+  /** Your accuracy and where your errors happen feed the coach's picture of your level. */
+  function recordReview(verdicts: Verdict[], loss: number[]) {
+    const mine = line.map((_, i) => i).filter((i) => colorOf(line[i].color) === me);
+    if (mine.length < 5) return;
+    const count = (v: Verdict) => mine.filter((i) => verdicts[i] === v).length;
+    const errorsByPhase = { opening: 0, middlegame: 0, endgame: 0 };
+    for (const i of mine) {
+      if (verdicts[i] !== "mistake" && verdicts[i] !== "blunder") continue;
+      const pieces = chessAt(i).board().flat().reduce((n, p) => n + (p && p.type !== "p" && p.type !== "k" ? ({ n: 3, b: 3, r: 5, q: 9 } as Record<string, number>)[p.type] : 0), 0);
+      errorsByPhase[phaseOf(Math.floor(i / 2) + 1, pieces)]++;
+    }
+    record.review({
+      id: line.map((m) => m.san).join(" "),
+      accuracy: accuracy(mine.map((i) => loss[i])),
+      moves: mine.length,
+      blunders: count("blunder"),
+      mistakes: count("mistake"),
+      inaccuracies: count("inaccuracy"),
+      errorsByPhase,
+    });
   }
 
   // ---------- AI coach ----------

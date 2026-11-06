@@ -137,12 +137,13 @@ export type CoachAction = { label: string; prompt: string | (() => Promise<strin
  * A coach box: quick-action buttons, a question field, and a streamed answer.
  * `context()` is called at ask time so answers always use the current position.
  */
-export function coachPanel(opts: { actions: () => CoachAction[]; context: () => Promise<string> | string; placeholder?: string }) {
+export function coachPanel(opts: { actions: () => CoachAction[]; context: () => Promise<string> | string; placeholder?: string; system?: () => string; title?: string; open?: boolean }) {
   const answer = h("div", { class: "coach-answer" });
   const buttons = h("div", { class: "row coach-actions" });
   const input = h("input", { class: "text", placeholder: opts.placeholder ?? "Ask the coach about this position…" }) as HTMLInputElement;
   const status = h("div", { class: "muted small" });
-  const el = h("details", { class: "ai-coach" }, h("summary", {}, "🎓 AI coach"), status, buttons, h("div", { class: "row" }, input), answer);
+  const el = h("details", { class: "ai-coach" }, h("summary", {}, opts.title ?? "🎓 AI coach"), status, buttons, h("div", { class: "row" }, input), answer);
+  if (opts.open) el.open = true;
   let history: Msg[] = [];
   let runId: string | undefined;
   let lastContext = "";
@@ -164,7 +165,7 @@ export function coachPanel(opts: { actions: () => CoachAction[]; context: () => 
     let text = "";
     answer.innerHTML = '<p class="muted">Thinking…</p>';
     status.textContent = `${s.provider === "claude" ? "Claude" : s.provider === "lmstudio" ? "LM Studio" : "Ollama"} · ${s.models[s.provider] ?? ""}`;
-    const res = await ai.chat(SYSTEM, history, (t) => {
+    const res = await ai.chat(opts.system?.() ?? SYSTEM, history, (t) => {
       if (runId !== id) return;
       text += t;
       answer.innerHTML = render(text);

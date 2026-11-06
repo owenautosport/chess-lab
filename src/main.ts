@@ -9,11 +9,13 @@ import { mountPuzzles } from "./puzzles";
 import { takePending } from "./router";
 import { mountLearn } from "./learn/learn";
 import { mountSettings } from "./settings";
+import { mountCoach } from "./coach/coach-tab";
 import { icon, piece, type IconName } from "./ui/visuals";
 
 type Tab = { label: string; icon: IconName | "pawn"; color: string; mount: (el: HTMLElement, path: string[]) => () => void };
 const TABS: Record<string, Tab> = {
-  learn: { label: "Learn", icon: "GraduationCap", color: "#5aa4e0", mount: mountLearn },
+  learn: { label: "Learn", icon: "BookOpen", color: "#5aa4e0", mount: mountLearn },
+  coach: { label: "Coach", icon: "GraduationCap", color: "#3fb6a8", mount: mountCoach },
   play: { label: "Play", icon: "pawn", color: "#81b64c", mount: mountPlay },
   puzzles: { label: "Puzzles", icon: "Puzzle", color: "#f39c2f", mount: mountPuzzles },
   analysis: { label: "Analysis", icon: "ChartLine", color: "#a77fe0", mount: (el: HTMLElement) => mountAnalysis(el, takePending()) },
