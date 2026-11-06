@@ -5,6 +5,7 @@ import { button, h } from "../board";
 import { formatScore, type Line } from "../engine";
 import { pvToSan } from "../board";
 import { load, save } from "../store";
+import { chatClaudeWeb, listClaudeModels, webKey } from "./claude-web";
 
 export type Provider = "off" | "lmstudio" | "ollama" | "claude";
 export type AiSettings = {
@@ -36,17 +37,23 @@ const BROWSER_DEFAULTS: AiSettings = {
   urls: { lmstudio: "http://localhost:1234/v1", ollama: "http://localhost:11434/v1" },
 };
 
+const running = new Map<string, AbortController>();
+
 export const ai = {
-  settings: (): Promise<AiSettings> => (bridge ? bridge.getSettings() : Promise.resolve(load("ai", BROWSER_DEFAULTS))),
+  settings: (): Promise<AiSettings> =>
+    bridge ? bridge.getSettings() : Promise.resolve({ ...load("ai", BROWSER_DEFAULTS), hasClaudeKey: !!webKey.get() }),
   async save(patch: Partial<AiSettings> & { claudeKey?: string | null }) {
     if (bridge) return bridge.setSettings(patch);
+    // The key is kept apart from the other settings, in this browser only.
+    const { claudeKey, hasClaudeKey: _, ...rest } = patch;
+    if (claudeKey !== undefined) webKey.set(claudeKey);
     const s = load("ai", BROWSER_DEFAULTS);
-    save("ai", { ...s, ...patch, models: { ...s.models, ...patch.models }, urls: { ...s.urls, ...patch.urls } });
+    save("ai", { ...s, ...rest, models: { ...s.models, ...rest.models }, urls: { ...s.urls, ...rest.urls } });
     return true;
   },
   async models(p: Provider) {
     if (bridge) return bridge.listModels(p);
-    if (p === "claude") return { ok: false, models: [], error: "Claude works in the desktop app." };
+    if (p === "claude") return webKey.get() ? listClaudeModels() : { ok: false, models: [], error: "Connect your own Claude API key first." };
     if (p === "off") return { ok: true, models: [] };
     try {
       const s = await ai.settings();
@@ -59,16 +66,23 @@ export const ai = {
   /** Stream a reply. Returns an id that can be passed to cancel(). */
   async chat(system: string, messages: Msg[], onText: (t: string) => void, id = Math.random().toString(36).slice(2)) {
     if (bridge) return bridge.chat(id, system, messages, onText);
-    return browserChat(system, messages, onText);
+    const abort = new AbortController();
+    running.set(id, abort);
+    try {
+      return await browserChat(system, messages, onText, abort.signal);
+    } finally {
+      running.delete(id);
+    }
   },
-  cancel: (id: string) => bridge?.cancel(id),
+  cancel: (id: string) => (bridge ? bridge.cancel(id) : running.get(id)?.abort()),
 };
 
-// In a plain browser (npm run dev) local models are called directly; Claude needs the desktop app.
-async function browserChat(system: string, messages: Msg[], onText: (t: string) => void) {
+// In a browser (the website, or npm run dev) local models are called directly, and Claude
+// uses the visitor's own key.
+async function browserChat(system: string, messages: Msg[], onText: (t: string) => void, signal: AbortSignal) {
   const s = await ai.settings();
   if (s.provider === "off") return { ok: false, error: "The coach is off. Choose a model in Settings." };
-  if (s.provider === "claude") return { ok: false, error: "Claude works in the desktop app (npm run app)." };
+  if (s.provider === "claude") return chatClaudeWeb(s.models.claude ?? "claude-opus-5-5", system, messages, onText, signal);
   try {
     const res = await fetch(`${s.urls[s.provider]}/chat/completions`, {
       method: "POST",

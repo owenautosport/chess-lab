@@ -8,7 +8,12 @@ const PROVIDERS: { key: Provider; label: string; blurb: string }[] = [
   { key: "off", label: "Off", blurb: "No AI coach. Everything else works as normal." },
   { key: "lmstudio", label: "LM Studio", blurb: "Runs on this Mac, works offline. Start the server in LM Studio (or run: lms server start)." },
   { key: "ollama", label: "Ollama", blurb: "Runs on this Mac, works offline. Download a model first, e.g. ollama pull qwen3:8b." },
-  { key: "claude", label: "Claude", blurb: "Anthropic's Claude via the API. Best explanations; needs internet and an API key (pay as you go). When you're offline, your LM Studio model answers instead." },
+  {
+    key: "claude", label: "Claude",
+    blurb: bridge
+      ? "Anthropic's Claude via the API. Best explanations; needs internet and your own API key (pay as you go). When you're offline, your LM Studio model answers instead."
+      : "Anthropic's Claude via the API. Best explanations. Connect your own API key below: you pay Anthropic for what you use, and nobody else's account is involved.",
+  },
 ];
 
 export function mountSettings(root: HTMLElement) {
@@ -40,7 +45,9 @@ export function mountSettings(root: HTMLElement) {
       }),
     ),
     keyStatus,
-    h("p", { class: "muted small" }, "Get a key at console.anthropic.com. It's stored encrypted in your Mac's keychain and never leaves this app except to call Claude."),
+    h("p", { class: "muted small" }, bridge
+      ? "Get a key at console.anthropic.com. It's stored encrypted in your Mac's keychain and never leaves this app except to call Claude."
+      : "Get your own key at console.anthropic.com. It's saved only in this browser, on this device, and is only ever sent to Anthropic. Remove it here when you're done, especially on a shared computer."),
   );
 
   async function reload() {
@@ -149,7 +156,7 @@ export function mountSettings(root: HTMLElement) {
       ),
       h("div", { class: "panel" },
         title("Info", "About", "#a5a3a0"),
-        h("p", { class: "muted small" }, bridge ? "Desktop app: everything works offline except chess.com import and Claude." : "Running in a browser. For Claude and offline use, run the desktop app (npm run app)."),
+        h("p", { class: "muted small" }, bridge ? "Desktop app: everything works offline except chess.com import and Claude." : "Running in a browser. The AI coach uses your own Claude key, or a model running on your own computer (LM Studio or Ollama, with CORS turned on in their server settings)."),
       ),
     ),
   );
