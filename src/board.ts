@@ -139,6 +139,12 @@ export function renderMoves(el: HTMLElement, sans: string[], current: number, on
   el.querySelector(".active")?.scrollIntoView({ block: "nearest" });
 }
 
+/** Fill `el` with a chess.com-style "White to move" banner. */
+export function turnBanner(el: HTMLElement, side: Color, sub = "Find the best move.") {
+  el.className = `feedback turn-banner turn-${side}`;
+  el.replaceChildren(h("b", {}, `${side === "white" ? "White" : "Black"} to move`), h("span", {}, sub));
+}
+
 /** Vertical evaluation bar; white share fills from the bottom (or top when flipped). */
 export function evalBar() {
   const fill = h("div", { class: "eval-fill" });

@@ -8,6 +8,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { chatCli, cliLogin, cliLogout, cliStatus, CLI_MODELS, type Cli } from "./ai-cli.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(here, "..", "dist");
@@ -22,17 +23,23 @@ const MIME: Record<string, string> = {
 
 // ---------- settings ----------
 
-export type Provider = "off" | "lmstudio" | "ollama" | "claude";
+// claude-cli / codex: "Sign in with Claude / ChatGPT" via the person's own Claude Code or Codex login.
+// claude / openai: API keys.
+export type Provider = "off" | "lmstudio" | "ollama" | "claude" | "openai" | "claude-cli" | "codex";
 type Settings = {
   provider: Provider;
   models: Partial<Record<Exclude<Provider, "off">, string>>;
   urls: { lmstudio: string; ollama: string };
-  claudeKey?: string; // encrypted with the macOS keychain via safeStorage, base64
+  claudeKey?: string; // encrypted with the OS keychain via safeStorage, base64
+  openaiKey?: string; // same
 };
 
+const isCli = (p: Provider): p is Cli => p === "claude-cli" || p === "codex";
+
 const DEFAULTS: Settings = {
-  provider: "lmstudio",
-  models: { claude: "claude-opus-5-5", lmstudio: "gemma-4-31b-it-mlx" },
+  // New installs start with the coach off; Settings offers the sign-in buttons.
+  provider: "off",
+  models: { claude: "claude-opus-5-5", lmstudio: "gemma-4-31b-it-mlx", openai: "gpt-5.5", "claude-cli": "sonnet", codex: "default" },
   urls: { lmstudio: "http://localhost:1234/v1", ollama: "http://localhost:11434/v1" },
 };
 const settingsFile = () => path.join(app.getPath("userData"), "ai-settings.json");
@@ -46,19 +53,23 @@ async function loadSettings(): Promise<Settings> {
   }
 }
 
-const claudeKey = (s: Settings) => (s.claudeKey ? safeStorage.decryptString(Buffer.from(s.claudeKey, "base64")) : undefined);
+const decrypt = (v?: string) => (v ? safeStorage.decryptString(Buffer.from(v, "base64")) : undefined);
+const claudeKey = (s: Settings) => decrypt(s.claudeKey);
+const openaiKey = (s: Settings) => decrypt(s.openaiKey);
 
 ipcMain.handle("ai:get-settings", async () => {
-  const { claudeKey: key, ...rest } = await loadSettings();
-  return { ...rest, hasClaudeKey: !!key };
+  const { claudeKey: key, openaiKey: okey, ...rest } = await loadSettings();
+  return { ...rest, hasClaudeKey: !!key, hasOpenaiKey: !!okey };
 });
 
-ipcMain.handle("ai:set-settings", async (_e, patch: Partial<Settings> & { claudeKey?: string | null }) => {
+ipcMain.handle("ai:set-settings", async (_e, patch: Partial<Settings> & { claudeKey?: string | null; openaiKey?: string | null }) => {
   const s = await loadSettings();
   const next: Settings = { ...s, ...patch, models: { ...s.models, ...patch.models }, urls: { ...s.urls, ...patch.urls } };
-  if (patch.claudeKey === null) delete next.claudeKey;
-  else if (patch.claudeKey) next.claudeKey = safeStorage.encryptString(patch.claudeKey.trim()).toString("base64");
-  else next.claudeKey = s.claudeKey;
+  for (const k of ["claudeKey", "openaiKey"] as const) {
+    if (patch[k] === null) delete next[k];
+    else if (patch[k]) next[k] = safeStorage.encryptString(patch[k]!.trim()).toString("base64");
+    else next[k] = s[k];
+  }
   await writeFile(settingsFile(), JSON.stringify(next, null, 2));
   return true;
 });
@@ -76,6 +87,17 @@ ipcMain.handle("ai:models", async (_e, provider: Provider): Promise<{ ok: boolea
       for await (const m of client.models.list()) ids.push(m.id);
       return { ok: true, models: ids };
     }
+    if (provider === "openai") {
+      const key = openaiKey(s);
+      if (!key) return { ok: false, models: [], error: "Add your OpenAI API key first." };
+      const res = await net.fetch("https://api.openai.com/v1/models", { headers: { authorization: `Bearer ${key}` } });
+      if (res.status === 401) return { ok: false, models: [], error: "OpenAI rejected the API key." };
+      const body = (await res.json()) as { data: { id: string }[] };
+      // Chat models only: skip audio, image, embedding, moderation and realtime models.
+      const ids = body.data.map((m) => m.id).filter((id) => /^(gpt-|o\d|chatgpt-)/.test(id) && !/audio|image|realtime|transcribe|tts|search|embed|moderation|instruct/.test(id));
+      return { ok: true, models: ids.sort().reverse() };
+    }
+    if (isCli(provider)) return { ok: true, models: CLI_MODELS[provider] };
     if (provider === "lmstudio" || provider === "ollama") {
       await ensureLocal(s, provider);
       const res = await net.fetch(`${s.urls[provider]}/models`);
@@ -88,6 +110,14 @@ ipcMain.handle("ai:models", async (_e, provider: Provider): Promise<{ ok: boolea
     return { ok: false, models: [], error: describeError(e, provider) };
   }
 });
+
+// ---------- signing in with Claude / ChatGPT ----------
+
+const isCliArg = (c: unknown): c is Cli => c === "claude-cli" || c === "codex";
+ipcMain.handle("ai:cli-status", (_e, cli: Cli) => (isCliArg(cli) ? cliStatus(cli) : null));
+ipcMain.handle("ai:cli-login", (_e, cli: Cli) => (isCliArg(cli) ? cliLogin(cli) : { ok: false }));
+ipcMain.handle("ai:cli-logout", (_e, cli: Cli) => (isCliArg(cli) ? cliLogout(cli) : undefined));
+ipcMain.handle("ai:open-install", (_e, cli: Cli) => isCliArg(cli) && shell.openExternal(cli === "codex" ? "https://developers.openai.com/codex/cli" : "https://claude.com/product/claude-code"));
 
 // ---------- keeping the local model ready ----------
 
@@ -116,7 +146,7 @@ async function ensureLocal(s: Settings, provider: "lmstudio" | "ollama") {
 /** Load the chosen local model in the background so the first question doesn't wait for it. */
 ipcMain.handle("ai:warm", async () => {
   const s = await loadSettings();
-  const provider = s.provider === "claude" ? "lmstudio" : s.provider;
+  const provider = s.provider === "ollama" ? "ollama" : s.provider === "lmstudio" ? "lmstudio" : undefined;
   if (provider !== "lmstudio" && provider !== "ollama") return false;
   const model = s.models[provider];
   if (!model || !(await ensureLocal(s, provider))) return false;
@@ -154,6 +184,12 @@ ipcMain.handle("ai:chat", async (e, req: ChatRequest): Promise<{ ok: boolean; er
         send(`(Offline, so ${s.models.lmstudio} is answering.)\n\n`);
         await chatLocal({ ...s, provider: "lmstudio" }, req, abort.signal, send);
       }
+    }
+    else if (isCli(s.provider)) await chatCli(s.provider, s.models[s.provider], req.system, req.messages, abort.signal, send);
+    else if (s.provider === "openai") {
+      const key = openaiKey(s);
+      if (!key) throw new Error("Add your OpenAI API key in Settings.");
+      await chatOpenAICompat("https://api.openai.com/v1", { authorization: `Bearer ${key}` }, s.models.openai ?? "gpt-5.5", "OpenAI", req, abort.signal, send);
     }
     else if (s.provider === "lmstudio" || s.provider === "ollama") await chatLocal(s, req, abort.signal, send);
     else return { ok: false, error: "The coach is off. Choose a model in Settings." };
@@ -196,13 +232,19 @@ async function chatLocal(s: Settings, req: ChatRequest, signal: AbortSignal, sen
   const model = s.models[provider];
   if (!model) throw new Error("Choose a model in Settings.");
   if (!(await ensureLocal(s, provider))) throw new Error("ECONNREFUSED");
-  const res = await net.fetch(`${s.urls[provider]}/chat/completions`, {
+  await chatOpenAICompat(s.urls[provider], {}, model, provider === "lmstudio" ? "LM Studio" : "Ollama", req, signal, send);
+}
+
+/** Any OpenAI-style chat API: OpenAI itself, LM Studio, Ollama. */
+async function chatOpenAICompat(base: string, headers: Record<string, string>, model: string, label: string, req: ChatRequest, signal: AbortSignal, send: (t: string) => void) {
+  const res = await net.fetch(`${base}/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify({ model, stream: true, messages: [{ role: "system", content: req.system }, ...req.messages] }),
     signal,
   });
-  if (!res.ok || !res.body) throw new Error(`${provider === "lmstudio" ? "LM Studio" : "Ollama"} replied ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (res.status === 401) throw new Error(`${label} rejected the API key. Check it in Settings.`);
+  if (!res.ok || !res.body) throw new Error(`${label} replied ${res.status}: ${(await res.text()).slice(0, 200)}`);
 
   // OpenAI-style server-sent events. Reasoning models may wrap thoughts in <think>…</think>; hide them.
   const reader = res.body.getReader();
@@ -254,7 +296,8 @@ function describeError(e: unknown, provider: Provider): string {
   if (e instanceof Anthropic.APIConnectionError) return "Can't reach Claude. Are you offline? Local models work without internet.";
   if (e instanceof Anthropic.APIError) return `Claude error ${e.status}: ${e.message}`;
   const msg = e instanceof Error ? e.message : String(e);
-  if (/ECONNREFUSED|ERR_CONNECTION_REFUSED|Failed to fetch/i.test(msg)) {
+  if (/ECONNREFUSED|ERR_CONNECTION_REFUSED|ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|Failed to fetch/i.test(msg)) {
+    if (provider === "openai") return "Can't reach OpenAI. Are you offline? The bots, puzzles and analysis all still work.";
     return provider === "lmstudio" ? "LM Studio isn't running. Open LM Studio and start its server (or run: lms server start)." : provider === "ollama" ? "Ollama isn't running. Open the Ollama app." : msg;
   }
   return msg;
@@ -264,6 +307,7 @@ function describeError(e: unknown, provider: Provider): string {
 
 // Packaged: Resources/engines; dev: ./engines (filled by scripts/fetch-engines.sh).
 const ENGINES = app.isPackaged ? path.join(process.resourcesPath, "engines") : path.join(here, "..", "engines");
+const LC0 = path.join(ENGINES, process.platform === "win32" ? "lc0.exe" : "lc0");
 const MAIA_LEVELS = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900];
 
 class Lc0 {
@@ -274,7 +318,7 @@ class Lc0 {
   private queue: Promise<unknown> = Promise.resolve();
 
   private start() {
-    this.proc = spawn(path.join(ENGINES, "lc0"), [], { stdio: "pipe" });
+    this.proc = spawn(LC0, [], { stdio: "pipe", cwd: ENGINES, windowsHide: true });
     this.proc.stdout.on("data", (d: Buffer) => {
       this.buffer += d.toString();
       const lines = this.buffer.split("\n");
@@ -325,7 +369,7 @@ class Lc0 {
 }
 
 const lc0 = new Lc0();
-ipcMain.handle("maia:levels", () => (existsSync(path.join(ENGINES, "lc0")) ? MAIA_LEVELS.filter((e) => existsSync(path.join(ENGINES, "maia", `maia-${e}.pb.gz`))) : []));
+ipcMain.handle("maia:levels", () => (existsSync(LC0) ? MAIA_LEVELS.filter((e) => existsSync(path.join(ENGINES, "maia", `maia-${e}.pb.gz`))) : []));
 ipcMain.handle("maia:move", (_e, fen: string, elo: number) => {
   if (!MAIA_LEVELS.includes(elo)) throw new Error("Unknown Maia level");
   return lc0.move(fen, elo);

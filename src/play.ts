@@ -396,8 +396,8 @@ export function mountPlay(root: HTMLElement) {
       const adv = c === "white" ? mat.diff : -mat.diff;
       const turn = phase === "game" && !over && colorOf(chess.turn()) === c;
       const avatar = you
-        ? h("span", { class: `avatar me${turn ? " turn" : ""}` }, icon("User", 20))
-        : botAvatar(bot, 30, `small${turn ? " turn" : ""}`);
+        ? h("span", { class: `avatar me${turn ? " turn" : ""}` }, icon("User", 26))
+        : botAvatar(bot, 40, `small${turn ? " turn" : ""}`);
       const name = you ? h("b", {}, "You") : h("b", {}, bot.name, h("span", { class: "bot-rating" }, `(${bot.rating})`));
       return [avatar, name, h("span", { class: `dot ${c}` }), h("span", { class: "caps" }, caps), adv > 0 ? h("span", { class: "adv" }, `+${adv}`) : ""];
     };

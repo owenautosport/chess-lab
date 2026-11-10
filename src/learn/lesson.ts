@@ -1,6 +1,6 @@
 // A tactic / mate-pattern lesson: explanation, a step-through example, then levelled practice.
 import { Chess, type Square } from "chess.js";
-import { button, createBoard, h, positionConfig, soundFor } from "../board";
+import { button, createBoard, h, positionConfig, soundFor, turnBanner } from "../board";
 import { loadPuzzles, type Puzzle } from "../puzzles";
 import { LEVEL_BANDS, LEVEL_UP_STREAK, MATES, lessonByKey } from "./lessons-data";
 import { progress } from "./progress";
@@ -130,6 +130,7 @@ export function mountLesson(root: HTMLElement, key: string) {
     if (recent.length > 30) recent.shift();
     const r = new PuzzleRunner(board, boardEl, p.solution, p.fen, {
       status: (kind, text) => {
+        if (kind === "turn") return turnBanner(status, text as "white" | "black");
         status.className = `feedback ${kind === "info" ? "" : kind}`;
         status.textContent = text;
       },

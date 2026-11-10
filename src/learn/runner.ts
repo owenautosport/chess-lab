@@ -4,7 +4,7 @@ import type { Api } from "@lichess-org/chessground/api";
 import { askPromotion, isPromotion, playSound, positionConfig, soundFor, uciOf, type Color } from "../board";
 
 export type RunnerHooks = {
-  status: (kind: "info" | "good" | "bad", text: string) => void;
+  status: (kind: "info" | "good" | "bad" | "turn", text: string) => void;
   finished: (clean: boolean) => void;
 };
 
@@ -34,7 +34,7 @@ export class PuzzleRunner {
   async start() {
     this.board.setAutoShapes([]);
     this.board.set({ orientation: this.me, ...positionConfig(this.chess) });
-    this.hooks.status("info", `Find the best move for ${this.me}.`);
+    this.hooks.status("turn", this.me);
     await wait(550);
     if (this.stopped) return;
     this.play(this.solution[this.step++]);

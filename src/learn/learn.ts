@@ -1,5 +1,7 @@
-// Learn tab: hub page plus routing to openings, lessons, endgames and practice scenarios.
-//   #learn                       hub
+// Learn tab: the guided path, the full course list, and routing to every lesson type.
+//   #learn  /  #learn/path/<level>   guided path (beginner → advanced)
+//   #learn/all                   every course in one place
+//   #learn/basics/<id>           "learn to play" lesson (pieces, rules, opening principles)
 //   #learn/opening/<id>          opening overview
 //   #learn/opening/<id>/<line>/<learn|practice>   trainer ("any" line = random, least-practised first)
 //   #learn/lesson/<theme>        tactic or mate lesson
@@ -16,6 +18,8 @@ import { LINE_MASTERED, progress } from "./progress";
 import { mountScenario, SCENARIOS } from "./scenario";
 import { afterMoves, boardThumb, icon, piece, type IconName } from "../ui/visuals";
 import { Chess } from "chess.js";
+import { mountBasics } from "./basics";
+import { pathView } from "./path";
 
 export function mountLearn(root: HTMLElement, path: string[]): () => void {
   const [section, a, b, c] = path;
@@ -23,7 +27,27 @@ export function mountLearn(root: HTMLElement, path: string[]): () => void {
   if (section === "lesson" && a) return mountLesson(root, a);
   if (section === "endgame" && a) return mountEndgame(root, a);
   if (section === "practice" && a) return mountScenario(root, a);
-  return mountHub(root);
+  if (section === "basics" && a) return mountBasics(root, a);
+  if (section === "all") return mountHub(root);
+  return mountPath(root, section === "path" ? a : undefined);
+}
+
+/** Title row shared by the path and the course list, with a switch between them. */
+function learnTop(active: "path" | "all") {
+  const tab = (key: "path" | "all", label: string, href: string, ico: IconName) =>
+    h("a", { class: `top-tab${key === active ? " on" : ""}`, href }, icon(ico, 18), label);
+  return h("header", { class: "learn-top" },
+    h("h1", {}, "Lessons"),
+    h("nav", { class: "top-tabs" }, tab("path", "Guided path", "#learn", "Route"), tab("all", "All lessons", "#learn/all", "LayoutGrid")));
+}
+
+function mountPath(root: HTMLElement, level?: string) {
+  const render = (lvl?: string) => root.replaceChildren(h("div", { class: "learn" }, learnTop("path"), pathView(lvl, (k) => {
+    history.replaceState(null, "", `#learn/path/${k}`);
+    render(k);
+  })));
+  render(level);
+  return () => {};
 }
 
 // Representative positions for the endgame and scenario cards.
@@ -120,6 +144,7 @@ function mountHub(root: HTMLElement) {
 
   root.append(
     h("div", { class: "learn" },
+      learnTop("all"),
       hero,
       section("BookOpen", "#5aa4e0", "Openings", "Learn the moves and the reasons, then practise from memory.", h("div", { class: "cards" }, ...openings)),
       section("Zap", "#f39c2f", "Tactics", "Each lesson has an example and endless practice. Five clean solves in a row moves you up a level.", tactics),

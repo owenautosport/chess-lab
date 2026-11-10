@@ -3,18 +3,21 @@ import { load, save } from "../store";
 export type LineProgress = { reps: number; clean: number; last: number };
 export type LessonProgress = { level: number; streak: number; solved: number; tries: number };
 export type EndgameProgress = { wins: number; tries: number; best?: number };
+export type BasicsProgress = { done: boolean; mistakes?: number }; // fewest mistakes in a full run
 
 type Progress = {
   lines: Record<string, LineProgress>;
   lessons: Record<string, LessonProgress>;
   endgames: Record<string, EndgameProgress>;
   scenarios: Record<string, { played: number }>;
+  basics: Record<string, BasicsProgress>;
 };
 
-const EMPTY: Progress = { lines: {}, lessons: {}, endgames: {}, scenarios: {} };
+const EMPTY: Progress = { lines: {}, lessons: {}, endgames: {}, scenarios: {}, basics: {} };
 
 export const progress = {
-  get: () => load<Progress>("learn", EMPTY),
+  // Spread over EMPTY so progress saved before a field existed still has every field.
+  get: (): Progress => ({ ...structuredClone(EMPTY), ...load<Progress>("learn", structuredClone(EMPTY)) }),
   update(fn: (p: Progress) => void) {
     const p = progress.get();
     fn(p);

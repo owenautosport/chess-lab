@@ -21,6 +21,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font: 14px/1.45 "Segoe UI", -apple-system, ui-sans-serif, Helvetica, Arial, sans-serif; min-height: 100vh; }
 #app { display: grid; grid-template-columns: 176px 1fr; min-height: 100vh; }
@@ -75,11 +76,19 @@ cg-board square.move-dest { background: radial-gradient(rgba(0, 0, 0, .14) 19%, 
 cg-board square.oc.move-dest { background: radial-gradient(transparent 0 79%, rgba(0, 0, 0, .14) 80%); }
 cg-board square.move-dest:hover { background: rgba(255, 255, 255, .25); }
 cg-board square.check { background: radial-gradient(ellipse at center, #ff3b30 0%, rgba(231,0,0,.8) 25%, transparent 89%); }
-.cg-wrap coords { font-weight: 700; font-size: 11px; }
-.orientation-white .ranks :nth-child(odd), .orientation-white .files :nth-child(even),
-.orientation-black .ranks :nth-child(even), .orientation-black .files :nth-child(odd) { color: var(--sq-dark); }
-.orientation-white .ranks :nth-child(even), .orientation-white .files :nth-child(odd),
-.orientation-black .ranks :nth-child(odd), .orientation-black .files :nth-child(even) { color: var(--sq-light); }
+/* chess.com-style coordinates: numbers in the top-left corner of the left-hand squares, letters in the
+   bottom-right corner of the bottom row. (chessground's default puts the letters on the square borders.) */
+.cg-wrap coords { font-weight: 700; font-size: clamp(9px, 1.9vmin, 13px); opacity: 1; font-family: inherit; }
+.cg-wrap coords.ranks { left: 0; top: 0; width: 100%; height: 100%; }
+.cg-wrap coords.ranks coord { transform: none; padding: 2px 0 0 4px; line-height: 1; }
+.cg-wrap coords.files { left: 0; bottom: 0; width: 100%; height: 100%; align-items: flex-end; text-transform: none; }
+.cg-wrap coords.files coord { flex: 1 1 0; text-align: right; padding: 0 4px 3px 0; line-height: 1; }
+/* Coordinates take the colour of the opposite square so they're readable: the bottom-left square is
+   always dark, and chessground puts the rank numbers down the left edge (on the a-file, or h-file for Black). */
+.orientation-white .ranks :nth-child(even), .orientation-white .files :nth-child(even),
+.orientation-black .ranks :nth-child(odd), .orientation-black .files :nth-child(odd) { color: var(--sq-dark); }
+.orientation-white .ranks :nth-child(odd), .orientation-white .files :nth-child(odd),
+.orientation-black .ranks :nth-child(even), .orientation-black .files :nth-child(even) { color: var(--sq-light); }
 
 .promotion { position: absolute; inset: 0; background: rgba(10, 12, 16, .55); z-index: 10; }
 .promotion button { position: absolute; width: 12.5%; height: 12.5%; border: 0; padding: 0; border-radius: 50%; background: #e7ecef; cursor: pointer; transition: background .1s; }
@@ -402,3 +411,120 @@ h2.titled { display: flex; align-items: center; gap: 8px; }
 .coach-chat { max-height: none; margin-top: 8px; }
 @media (max-width: 700px) { .idea-main { flex-direction: column; } .idea-main .thumb { width: 100%; } }
 .idea-text h3 { text-transform: none; color: var(--text); letter-spacing: 0; }
+.seg.wrap { flex-wrap: wrap; }
+.seg.wrap .btn { flex: 1 0 auto; }
+.signin { margin: 8px 0; }
+.good-text { color: #81b64c; }
+
+/* ---------- Lessons: title row ---------- */
+.learn-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.learn-top h1 { margin: 0; font-size: 28px; font-weight: 800; }
+.top-tabs { display: flex; gap: 4px; background: #21201d; border-radius: 8px; padding: 4px; }
+.top-tab { display: flex; align-items: center; gap: 7px; color: #ffffffb3; text-decoration: none; font-weight: 800; padding: 8px 14px; border-radius: 6px; }
+.top-tab:hover { color: #fff; }
+.top-tab.on { background: #3c3a37; color: #fff; box-shadow: 0 2px 0 #1d1c1a; }
+
+/* ---------- Lessons: guided path ---------- */
+.path-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.path-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.path-side { position: sticky; top: 16px; }
+.level-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.level-tab { background: var(--panel); border: 0; border-radius: 8px; padding: 10px 12px; color: var(--text); font: inherit; cursor: pointer; text-align: left;
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; box-shadow: 0 3px 0 #1d1c1a; border-top: 3px solid transparent; }
+.level-tab b { font-size: 16px; }
+.level-tab span { color: var(--muted); font-weight: 700; font-size: 12px; align-self: center; }
+.level-tab .meter { grid-column: 1 / -1; }
+.level-tab .meter i { background: var(--lvl); }
+.level-tab:hover { background: #2f2c29; }
+.level-tab.on { border-top-color: var(--lvl); background: #2f2c29; }
+.level-blurb { margin: 0; }
+.unit { background: var(--panel); border-radius: 10px; overflow: hidden; box-shadow: 0 3px 0 #1d1c1a; }
+.unit-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lvl) 34%, #262421), #262421 85%); }
+.unit-head h2 { font-size: 18px; }
+.unit-no { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #ffffffb3; }
+.unit-count { font-weight: 800; color: #ffffffcc; white-space: nowrap; }
+.trail { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 12px 22px; position: relative; }
+.trail-node { display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: var(--text); transform: translateX(var(--x, 0)); width: 200px; text-align: center; }
+.trail-dot { position: relative; width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center; background: #3c3a37; color: #cfcdca;
+  box-shadow: 0 5px 0 #23211f; transition: transform .1s; }
+.trail-dot .piece-img { filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+.trail-node:hover .trail-dot { transform: translateY(-2px); }
+.trail-node.done .trail-dot { background: var(--lvl); color: #fff; box-shadow: 0 5px 0 color-mix(in srgb, var(--lvl) 55%, #000); }
+.trail-node.current .trail-dot, .trail-dot.current { background: #fff; color: #312e2b; box-shadow: 0 5px 0 #a9a7a4, 0 0 0 5px color-mix(in srgb, var(--lvl, var(--accent)) 60%, transparent); animation: pulse 1.8s ease-in-out infinite; }
+.trail-check { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; color: #3a6a24; display: grid; place-items: center; box-shadow: 0 1px 0 rgba(0,0,0,.4); }
+.trail-text { display: flex; flex-direction: column; line-height: 1.25; }
+.trail-text b { font-size: 14px; }
+.trail-text span { color: var(--muted); font-size: 12px; }
+.trail-node.current .trail-text span { color: var(--lvl); font-weight: 800; }
+@keyframes pulse { 50% { box-shadow: 0 5px 0 #a9a7a4, 0 0 0 9px color-mix(in srgb, var(--lvl, var(--accent)) 25%, transparent); } }
+.path-continue { gap: 12px; max-height: none; }
+.continue-node { display: flex; align-items: center; gap: 12px; }
+.continue-node .trail-dot { width: 54px; height: 54px; flex: none; animation: none; }
+.path-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
+.path-total b { font-size: 20px; }
+.meter.big { height: 10px; border-radius: 5px; }
+@media (max-width: 900px) {
+  .path-layout { grid-template-columns: minmax(0, 1fr); }
+  .path-side { position: static; order: -1; }
+  .trail-node { transform: translateX(calc(var(--x, 0) * .5)); }
+}
+@media (max-width: 520px) { .level-tabs { grid-template-columns: 1fr; } }
+
+/* ---------- Lessons: lesson player ---------- */
+.board-wrap { position: relative; }
+.star-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.star { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; color: #f7c631; animation: twinkle 1.6s ease-in-out infinite; }
+.star svg { width: 56%; height: 56%; fill: #f7c631; stroke: #b88a12; filter: drop-shadow(0 2px 1px rgba(0,0,0,.35)); }
+@keyframes twinkle { 50% { transform: scale(1.12); } }
+.lesson-panel { gap: 12px; }
+.lesson-head { display: flex; flex-direction: column; gap: 8px; }
+.lesson-icon { width: 30px; height: 30px; border-radius: 7px; background: var(--accent); color: #fff; display: grid; place-items: center; box-shadow: 0 2px 0 var(--accent-dark); }
+.lesson-bar { display: flex; gap: 4px; }
+.lesson-bar i { flex: 1; height: 8px; border-radius: 4px; background: #3c3a37; }
+.lesson-bar i.done { background: var(--accent); }
+.lesson-bar i.now { background: #c9e2a9; }
+.coach-bubble { display: flex; gap: 10px; align-items: flex-start; }
+.coach-avatar { width: 46px; height: 46px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; flex: none; box-shadow: 0 3px 0 var(--accent-dark); }
+.coach-text { position: relative; background: #fff; color: #312e2b; border-radius: 10px; padding: 11px 13px; font-weight: 600; line-height: 1.45; font-size: 15px; }
+.coach-text::before { content: ""; position: absolute; left: -7px; top: 15px; border: 7px solid transparent; border-left: 0; border-right-color: #fff; }
+.star-counter { display: flex; justify-content: space-between; align-items: center; background: #21201d; border-radius: 6px; padding: 8px 12px; font-weight: 800; }
+.star-counter .icon { color: #f7c631; fill: #f7c631; }
+.target-square { font-size: 30px; font-weight: 900; color: #fff; letter-spacing: .02em; }
+.target-square.done { color: var(--accent); }
+.lesson-controls .btn { flex: 1 1 auto; }
+
+/* ---------- chess.com-style polish ---------- */
+/* Sidebar: taller rows and bigger icons. */
+.nav { width: 176px; gap: 0; padding-top: 6px; }
+.nav a { padding: 11px 16px; font-size: 16px; gap: 13px; }
+.nav .nav-icon { width: 28px; height: 28px; }
+.nav .brand { padding: 10px 14px 14px; font-size: 19px; white-space: nowrap; }
+.nav .logo { width: 34px; height: 34px; }
+@media (max-width: 820px) { .nav { width: auto; } .nav a { font-size: 11px; padding: 6px 8px; gap: 2px; } .nav .brand { padding: 6px 8px; } .nav .nav-icon { width: 22px; height: 22px; } }
+
+/* Panels open with a dark header strip, like chess.com's side panels. */
+.panel > h2.titled:first-child { margin: -14px -14px 2px; padding: 13px 16px; background: #21201d; border-radius: 8px 8px 0 0; justify-content: center; font-size: 18px; }
+.lesson-head { margin: -14px -14px 0; padding: 12px 16px 14px; background: #21201d; border-radius: 8px 8px 0 0; }
+.lesson-head h2.titled { font-size: 18px; }
+
+/* "White to move" / "Black to move" banner at the start of each puzzle. */
+.turn-banner { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 6px; }
+.turn-banner b { font-size: 19px; font-weight: 800; }
+.turn-banner span { font-weight: 600; opacity: .75; font-size: 13px; }
+.turn-banner.turn-white { background: #f0f0ee; color: #312e2b; }
+.turn-banner.turn-black { background: #151413; color: #fff; box-shadow: inset 0 0 0 1px #3c3a37; }
+.feedback.good { background: #81b64c; color: #fff; }
+.feedback.bad { background: #ca3431; color: #fff; }
+
+/* Player bars: big square avatars and bold names. */
+.player-bar { min-height: 46px; gap: 10px; }
+.player-bar b { font-size: 15px; }
+.player-bar .bot-rating { color: var(--muted); font-weight: 600; margin-left: 5px; }
+.avatar { width: 40px; height: 40px; border-radius: 4px; }
+.player-bar .dot { display: none; }
+.avatar.turn, .bot-avatar.turn { box-shadow: 0 0 0 2px #fff; }
+
+/* Board: square corners and a soft shadow. */
+.board.cg-wrap { border-radius: 0; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+.version-line { margin: 0; }

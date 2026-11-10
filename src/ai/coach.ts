@@ -7,18 +7,30 @@ import { pvToSan } from "../board";
 import { load, save } from "../store";
 import { chatClaudeWeb, listClaudeModels, webKey } from "./claude-web";
 
-export type Provider = "off" | "lmstudio" | "ollama" | "claude";
+export type Provider = "off" | "lmstudio" | "ollama" | "claude" | "openai" | "claude-cli" | "codex";
+export type Cli = "claude-cli" | "codex";
+export type CliStatus = { installed: boolean; loggedIn: boolean; detail?: string; install: string };
 export type AiSettings = {
   provider: Provider;
   models: Partial<Record<Exclude<Provider, "off">, string>>;
   urls: { lmstudio: string; ollama: string };
   hasClaudeKey?: boolean;
+  hasOpenaiKey?: boolean;
+};
+type KeyPatch = { claudeKey?: string | null; openaiKey?: string | null };
+
+export const PROVIDER_NAMES: Record<Provider, string> = {
+  off: "Off", lmstudio: "LM Studio", ollama: "Ollama", claude: "Claude API", openai: "OpenAI API", "claude-cli": "Claude", codex: "ChatGPT",
 };
 type Msg = { role: "user" | "assistant"; content: string };
 
 type Bridge = {
   getSettings(): Promise<AiSettings>;
-  setSettings(patch: Partial<AiSettings> & { claudeKey?: string | null }): Promise<boolean>;
+  setSettings(patch: Partial<AiSettings> & KeyPatch): Promise<boolean>;
+  cliStatus(cli: Cli): Promise<CliStatus>;
+  cliLogin(cli: Cli): Promise<{ ok: boolean; error?: string }>;
+  cliLogout(cli: Cli): Promise<void>;
+  openInstall(cli: Cli): Promise<void>;
   listModels(p: Provider): Promise<{ ok: boolean; models: string[]; error?: string }>;
   cancel(id: string): Promise<void>;
   chesscom(path: string): Promise<{ status: number; body: unknown }>;
@@ -42,10 +54,10 @@ const running = new Map<string, AbortController>();
 export const ai = {
   settings: (): Promise<AiSettings> =>
     bridge ? bridge.getSettings() : Promise.resolve({ ...load("ai", BROWSER_DEFAULTS), hasClaudeKey: !!webKey.get() }),
-  async save(patch: Partial<AiSettings> & { claudeKey?: string | null }) {
+  async save(patch: Partial<AiSettings> & KeyPatch) {
     if (bridge) return bridge.setSettings(patch);
     // The key is kept apart from the other settings, in this browser only.
-    const { claudeKey, hasClaudeKey: _, ...rest } = patch;
+    const { claudeKey, openaiKey: _o, hasClaudeKey: _, hasOpenaiKey: _h, ...rest } = patch;
     if (claudeKey !== undefined) webKey.set(claudeKey);
     const s = load("ai", BROWSER_DEFAULTS);
     save("ai", { ...s, ...rest, models: { ...s.models, ...rest.models }, urls: { ...s.urls, ...rest.urls } });
@@ -55,6 +67,7 @@ export const ai = {
     if (bridge) return bridge.listModels(p);
     if (p === "claude") return webKey.get() ? listClaudeModels() : { ok: false, models: [], error: "Connect your own Claude API key first." };
     if (p === "off") return { ok: true, models: [] };
+    if (p !== "lmstudio" && p !== "ollama") return { ok: false, models: [], error: "Only in the desktop app." };
     try {
       const s = await ai.settings();
       const body = await (await fetch(`${s.urls[p]}/models`)).json();
@@ -83,6 +96,7 @@ async function browserChat(system: string, messages: Msg[], onText: (t: string) 
   const s = await ai.settings();
   if (s.provider === "off") return { ok: false, error: "The coach is off. Choose a model in Settings." };
   if (s.provider === "claude") return chatClaudeWeb(s.models.claude ?? "claude-opus-5-5", system, messages, onText, signal);
+  if (s.provider !== "lmstudio" && s.provider !== "ollama") return { ok: false, error: "That coach only works in the desktop app. Choose another in Settings." };
   try {
     const res = await fetch(`${s.urls[s.provider]}/chat/completions`, {
       method: "POST",
@@ -166,7 +180,9 @@ export function coachPanel(opts: { actions: () => CoachAction[]; context: () => 
     if (runId) ai.cancel(runId);
     const s = await ai.settings();
     if (s.provider === "off") {
-      status.innerHTML = 'The coach is off. Pick LM Studio, Ollama or Claude in <a href="#settings">Settings</a>.';
+      status.innerHTML = bridge
+        ? 'The coach is off. <a href="#settings">Sign in with Claude or ChatGPT</a> in Settings to turn it on.'
+        : 'The coach is off. Pick a model in <a href="#settings">Settings</a>.';
       return;
     }
     const ctx = await opts.context();
@@ -178,7 +194,7 @@ export function coachPanel(opts: { actions: () => CoachAction[]; context: () => 
     const id = (runId = Math.random().toString(36).slice(2));
     let text = "";
     answer.innerHTML = '<p class="muted">Thinking…</p>';
-    status.textContent = `${s.provider === "claude" ? "Claude" : s.provider === "lmstudio" ? "LM Studio" : "Ollama"} · ${s.models[s.provider] ?? ""}`;
+    status.textContent = `${PROVIDER_NAMES[s.provider]} · ${s.models[s.provider] ?? ""}`;
     const res = await ai.chat(opts.system?.() ?? SYSTEM, history, (t) => {
       if (runId !== id) return;
       text += t;

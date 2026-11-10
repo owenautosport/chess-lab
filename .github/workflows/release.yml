@@ -1,0 +1,80 @@
+# Build the desktop app for macOS (Apple Silicon) and Windows and attach the installers to a
+# GitHub Release. Runs when a version tag is pushed (git tag v1.0.0 && git push origin v1.0.0),
+# or by hand from the Actions tab (which builds the installers but doesn't publish a release).
+name: Release desktop app
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon runner
+            dist: dist:mac
+          - os: windows-latest
+            dist: dist:win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # A tag must match package.json, or the installers would carry the wrong version number.
+      - if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME doesn't match package.json version $v"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # npm 11 blocks install scripts, so fetch the Electron binary explicitly.
+      - run: node node_modules/electron/install.js
+      - if: runner.os == 'macOS'
+        run: brew install lc0
+      - run: npm run engines
+      # No paid certificates: the Mac app is ad-hoc signed (mac.identity "-"), Windows is unsigned.
+      - run: npm run ${{ matrix.dist }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*
+          generate_release_notes: true
+          body: |
+            ## Download
+
+            - **Mac (Apple Silicon, M1 or newer):** `Chess-Lab-*-mac-arm64.dmg`
+            - **Windows (64-bit):** `Chess-Lab-*-win-x64.exe`
+
+            The bots (Stockfish and the human-like Maia players), puzzles, analysis and lessons work fully offline.
+            For the AI coach, open **Settings → AI coach** and choose **Sign in with Claude** or **Sign in with ChatGPT**.
+
+            ### First launch
+
+            The app isn't signed with a paid Apple/Microsoft certificate, so your computer will ask once:
+
+            - **Mac:** if it says the app can't be opened, go to **System Settings → Privacy & Security** and press **Open Anyway**.
+            - **Windows:** on the blue SmartScreen box, press **More info → Run anyway**.

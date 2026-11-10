@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld("chessLab", {
   warm: () => ipcRenderer.invoke("ai:warm"),
   maiaLevels: () => ipcRenderer.invoke("maia:levels"),
   maiaMove: (fen, elo) => ipcRenderer.invoke("maia:move", fen, elo),
+  cliStatus: (cli) => ipcRenderer.invoke("ai:cli-status", cli),
+  cliLogin: (cli) => ipcRenderer.invoke("ai:cli-login", cli),
+  cliLogout: (cli) => ipcRenderer.invoke("ai:cli-logout", cli),
+  openInstall: (cli) => ipcRenderer.invoke("ai:open-install", cli),
   /** Streams text to onText; resolves { ok, error? } when finished. */
   chat: async (id, system, messages, onText) => {
     const listener = (_e, msg) => msg.id === id && onText(msg.text);

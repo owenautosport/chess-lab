@@ -1,7 +1,7 @@
 {
   "name": "chess-lab",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "predev": "node scripts/copy-engine.mjs",
@@ -12,8 +12,10 @@
     "electron:build": "tsc -p electron",
     "app": "npm run build && npm run electron:build && electron .",
     "app:dev": "npm run electron:build && ELECTRON_DEV=1 electron .",
-    "dist:mac": "npm run build && npm run electron:build && electron-builder --mac dir",
-    "install:mac": "bash scripts/install-mac.sh"
+    "dist:mac": "npm run build && npm run electron:build && electron-builder --mac --publish never",
+    "install:mac": "bash scripts/install-mac.sh",
+    "engines": "node scripts/fetch-engines.mjs",
+    "dist:win": "npm run build && npm run electron:build && electron-builder --win --publish never"
   },
   "devDependencies": {
     "@lichess-org/chessground": "^10.5.0",
@@ -45,15 +47,50 @@
       "package.json"
     ],
     "mac": {
-      "target": "dir",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
       "category": "public.app-category.board-games",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false
     },
     "extraResources": [
       {
         "from": "engines",
-        "to": "engines"
+        "to": "engines",
+        "filter": [
+          "**/*",
+          "!*.zip"
+        ]
       }
-    ]
-  }
+    ],
+    "artifactName": "Chess-Lab-${version}-${os}-${arch}.${ext}",
+    "dmg": {
+      "title": "Chess Lab ${version}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "description": "A free chess trainer: bots that play offline, puzzles, analysis, game review and lessons, with an optional AI coach.",
+  "author": "owenautosport"
 }

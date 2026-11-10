@@ -1,6 +1,6 @@
 // Puzzle trainer: rated puzzles, theme drills, and drilling your own reviewed mistakes.
 import { Chess, type Square } from "chess.js";
-import { askPromotion, button, colorOf, createBoard, h, isPromotion, playSound, positionConfig, soundFor, uciOf, type Color } from "./board";
+import { askPromotion, button, colorOf, createBoard, h, isPromotion, playSound, positionConfig, soundFor, uciOf, type Color, turnBanner } from "./board";
 import { engine, winPercent, type Line } from "./engine";
 import { openInAnalysis } from "./router";
 import { puzzleCoach } from "./ai/puzzle-coach";
@@ -115,11 +115,11 @@ export function mountPuzzles(root: HTMLElement) {
       // Your own position: you're the side to move, no setup move.
       me = colorOf(chess.turn());
       board.set({ orientation: me, ...positionConfig(chess, me) });
-      feedback.textContent = `In your game you played ${p.mistake.played} here (a ${p.mistake.kind}). Find the better move.`;
+      turnBanner(feedback, me, `In your game you played ${p.mistake.played} here (a ${p.mistake.kind}). Find the better move.`);
     } else {
       me = chess.turn() === "w" ? "black" : "white";
       board.set({ orientation: me, ...positionConfig(chess) });
-      feedback.textContent = `Find the best move for ${me}.`;
+      turnBanner(feedback, me);
       await new Promise((r) => setTimeout(r, 500));
       if (!alive || puzzle !== p) return;
       playUci(p.solution[step++]);
